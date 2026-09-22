@@ -114,7 +114,7 @@ InfiniGen의 공개 논문 근거상 잠정 TRL은 4 수준(보수적 범위 3~4
 | 비교 질문 | KIVI | InfiniGen |
 | --- | --- | --- |
 | 적합 조건 | **팀 추론 · domain-1**<br><br>KIVI는 KV 캐시를 2비트로 줄이고 잔여 구간은 FP로 유지하므로, 장문·반복 문서 검토 Agent의 동시 처리 후보가 되지만 업무 품질 적합성은 간접 근거다. [5, 물리 p.2] [5, 물리 p.6] [5, 물리 p.8] [1, snapshot block 15, character 0]<br><br>[조건·한계·원문](citation_review.md#domain-1) | **적용 가정 · domain-4**<br><br>InfiniGen은 CPU KV pool에 캐시를 두고 다음 레이어에 필요한 항목만 GPU로 prefetch하므로 장문·반복 요청에 맞을 가능성이 있지만, CPU 메모리와 PCIe 계층을 전제로 한다. [3, 물리 p.2] [3, 물리 p.6] [1, snapshot block 15, character 0]<br><br>[조건·한계·원문](citation_review.md#domain-4) |
-| 정확도·운영 위험 | **저자 보고 결과 · domain-2**<br><br>KIVI는 2비트 압축 이득이 모델 구조와 설정에 좌우된다. Falcon의 이미 압축된 KV에서는 4비트가 필요할 수 있고, 큰 group size는 대표 태스크 정확도를 낮출 위험이 있다. [5, 물리 p.6] [5, 물리 p.7] [5, 물리 p.9]<br><br>[조건·한계·원문](citation_review.md#domain-2) | **저자 보고 결과 · domain-5**<br><br>InfiniGen은 KV 전송을 줄이는 대신 attention 예측과 alpha·partial weight 설정에 의존한다. 설정을 높이면 메모리 부담이 커지고 예측 실패는 문서 근거 누락이나 지연 변동으로 연결될 수 있다. [3, 물리 p.5] [3, 물리 p.9] [3, 물리 p.13]<br><br>[조건·한계·원문](citation_review.md#domain-5) |
+| 정확도·운영 위험 | **저자 보고 결과 · domain-2**<br><br>KIVI는 2비트 압축 이득이 모델 구조와 설정에 좌우된다. Falcon의 이미 압축된 KV에서는 4비트가 필요할 수 있고, 큰 group size는 대표 태스크 정확도를 낮출 위험이 있다. [5, 물리 p.6] [5, 물리 p.7] [5, 물리 p.9]<br><br>[조건·한계·원문](citation_review.md#domain-2) | **팀 추론 · domain-5**<br><br>논문 결과: InfiniGen은 필요한 KV를 예측해 전송량을 줄이며, partial weight ratio를 높이면 partial weights와 key cache의 메모리 사용량이 증가한다. 팀 추론: 예측 누락이 기업 문서의 근거 보존과 응답 지연에 미치는 영향은 업무 데이터로 확인해야 한다. [3, 물리 p.5] [3, 물리 p.9] [3, 물리 p.13]<br><br>[조건·한계·원문](citation_review.md#domain-5) |
 | 확인할 실험 | **팀 추론 · domain-3**<br><br>KIVI의 논문 평가는 일반·장문 생성과 메모리·처리량을 다루지만, 기업 문서 Agent의 정확도와 p95 지연을 검증하지 않아 업무 도입 판정에는 별도 시험이 필요하다. [5, 물리 p.6] [5, 물리 p.13] [5, 물리 p.8] [1, snapshot block 17, character 0]<br><br>[조건·한계·원문](citation_review.md#domain-3) | **팀 추론 · domain-6**<br><br>InfiniGen은 실제 GPU·CPU·PCIe 시스템에서 장문 batch 추론 지연을 측정했지만, 그 speedup은 기업 문서 Agent의 품질·동시성 성과로 전환되지 않아 별도 검증이 필요하다. [3, 물리 p.9] [3, 물리 p.11] [3, 물리 p.12]<br><br>[조건·한계·원문](citation_review.md#domain-6) |
 
 # 관점 간 상충과 한계
@@ -141,56 +141,50 @@ KIVI는 GPU KV 메모리가 병목이고 품질 회귀시험을 통과할 때 �
 
 ## 남은 근거 공백
 
-- SK AX의 장문·반복·동시 요청 조건에서 KIVI의 정확도, 지연시간, 안정성은 직접 검증되지 않았다. (gap-research_kivi-1)
+### 업무 품질과 서비스 성능
 
-- 기업 IT 사업 문서 검토 Agent의 질의응답·요약·인용·도구 호출 품질에 대한 KIVI 전용 실험은 확인되지 않았다. (gap-research_kivi-2)
+기업 IT 문서의 요구사항·조항 추출, 요약, 인용, 질의응답과 도구 호출을 대상으로 두 기술을 검증한 자료가 부족하다. 실제 문서 길이·동시 요청 조건에서 정확도, 지연, 비용과 안정성을 함께 측정해야 한다.
 
-- KIVI와 InfiniGen을 동일 모델·GPU·배치·컨텍스트 길이에서 직접 비교한 근거는 제공된 발췌에 없다. (gap-research_kivi-3)
+관련 검토: [research_kivi-1](gap_review.md#gap-research_kivi-1--research_kivi), [research_kivi-2](gap_review.md#gap-research_kivi-2--research_kivi), [research_infinigen-1](gap_review.md#gap-research_infinigen-1--research_infinigen), [market-1](gap_review.md#gap-market-1--market), [market-2](gap_review.md#gap-market-2--market), [stakeholder-1](gap_review.md#gap-stakeholder-1--stakeholder), [stakeholder-2](gap_review.md#gap-stakeholder-2--stakeholder), [domain-1](gap_review.md#gap-domain-1--domain).
 
-- 기업의 IT 사업 문서 검토 Agentic AI에서 장문·반복·동시 요청을 처리할 때의 정확도, 지연, 비용, 운영 안정성은 미검증이다. (gap-research_infinigen-1)
+### 동일 조건 비교
 
-- InfiniGen의 attention prediction 오류율과 PCIe 세대·CPU 메모리 구성별 민감도는 제공 발췌에서 확인되지 않았다. (gap-research_infinigen-2, gap-stakeholder-4)
+모델·정밀도·입출력 길이·배치·GPU·CPU 메모리·PCIe를 맞춘 직접 비교가 없어, 서로 다른 논문의 수치로 기술 우열을 결정할 수 없다.
 
-- 공식 저장소의 실행 재현 절차와 라이선스 조건은 제공 발췌만으로 확인되지 않았다. (gap-research_infinigen-3)
+관련 검토: [research_kivi-3](gap_review.md#gap-research_kivi-3--research_kivi), [stakeholder-3](gap_review.md#gap-stakeholder-3--stakeholder), [domain-3](gap_review.md#gap-domain-3--domain).
 
-- 두 기술 모두 기업 IT 사업 문서 검토 Agent의 사실성, 인용 정확도, 요약·질의응답·도구 호출 품질을 직접 검증한 결과가 제공되지 않았다. (gap-market-1)
+### 설정과 하드웨어 민감도
 
-- SK AX의 장문·반복·동시 요청 조건에서 두 기술의 지연시간, 정확도, 장애복구, 보안, 운영비를 검증한 자료가 없다. (gap-market-2)
+InfiniGen의 예측 오류율과 PCIe·CPU 메모리 구성별 민감도, KIVI의 기업 문서 근거 보존 손실을 추가로 확인해야 한다.
 
-- 두 기술의 공식 라이선스 적합성, 유지보수 비용, 독립 재현 절차와 공개 상용 채택 사례는 제공된 출처 범위에서 확인되지 않았다. (gap-market-3)
+관련 검토: [research_infinigen-2](gap_review.md#gap-research_infinigen-2--research_infinigen), [stakeholder-4](gap_review.md#gap-stakeholder-4--stakeholder), [domain-4](gap_review.md#gap-domain-4--domain).
 
-- 기업 IT 사업 문서 검토에서 두 기술의 사실성·인용·요약·도구 호출 품질을 직접 검증한 실험은 확인되지 않았다. (gap-stakeholder-1)
+### 도입·운영 조건
 
-- SK AX의 장문·반복·동시 요청 조건에서 두 기술의 정확도·지연·비용·운영 안정성을 직접 비교한 근거가 없다. (gap-stakeholder-2)
+공개 상용 채택, 독립 재현 절차, 라이선스 적합성, 유지보수 비용, 보안·접근통제, 장애 복구, SLA와 결과 책임분담을 확인해야 한다. 현재 검색 근거만으로 도입 승인을 판단하기는 어렵다.
 
-- KIVI와 InfiniGen을 동일 모델·GPU·배치·컨텍스트 길이에서 비교한 근거가 없다. (gap-stakeholder-3)
+관련 검토: [research_infinigen-3](gap_review.md#gap-research_infinigen-3--research_infinigen), [market-3](gap_review.md#gap-market-3--market), [stakeholder-5](gap_review.md#gap-stakeholder-5--stakeholder), [domain-5](gap_review.md#gap-domain-5--domain).
 
-- 두 기술의 기업 도입을 위한 공식 라이선스, 보안 통제, 장애복구, 운영 SLA와 문서 검토 결과의 책임분담은 추가 확인이 필요하다. (gap-stakeholder-5)
+### 적용 시나리오의 범위
 
-- 기업 IT 사업 문서 검토에서 요구사항·조항 추출, 인용, 요약, 리스크 판정, RAG 및 도구 호출 품질을 두 기술로 검증한 실험이 없다. (gap-domain-1)
+SK AX의 장문·반복·동시 요청은 공개 AiPMO 사례를 바탕으로 한 적용 가정이다. 실제 내부 구조·업무량이나 두 기술의 도입 사실을 확인한 것은 아니다.
 
-- SK AX의 장문·반복·동시 요청은 적용 가정이며, 실제 내부 구조·업무량·도입 또는 채택 사실은 확인되지 않았다. (gap-domain-2)
+관련 검토: [domain-2](gap_review.md#gap-domain-2--domain).
 
-- KIVI와 InfiniGen을 동일 모델·정밀도·입출력 길이·배치·GPU·CPU 메모리·PCIe 조건에서 비교한 정확도·지연·메모리 실험이 없다. (gap-domain-3)
-
-- InfiniGen의 attention prediction 오류율과 PCIe·CPU 메모리 구성별 민감도, KIVI의 기업 문서 근거 보존 손실은 제공 발췌에서 확인되지 않았다. (gap-domain-4)
-
-- 두 기술의 운영 SLA, 장애 복구, 보안·접근통제, 공식 라이선스 적합성 및 독립 재현 절차는 목표 업무 적용 전에 추가 확인이 필요하다. (gap-domain-5)
-
-공백별 판단 근거와 후속 확인 항목: [공백 검수표](gap_review.md).
+공백별 원문과 판단 근거는 [공백 검수표](gap_review.md)에 보존했다.
 
 # REFERENCE
 
-[1] SK AX (발행일 미상). **SK AX AiPMO**. 공식 웹 자료, 스냅샷 6dbb089c1432. 조회 2026-09-21.  
+[1] SK AX (발행일 미상). **SK AX AiPMO**. SK AX, 스냅샷 6dbb089c1432. 조회 2026-09-21.  
 https://www.skax.co.kr/ax-services/aipmo
 
-[2] KIVI authors (발행일 미상). **https://raw.githubusercontent.com/jy-yuan/KIVI/main/docs/long_bench.md**. 공식 웹 자료, 스냅샷 74a7fdff77c7. 조회 2026-09-21.  
+[2] KIVI authors (발행일 미상). **More results on LongBench**. GitHub · KIVI, 스냅샷 74a7fdff77c7. 조회 2026-09-21.  
 https://raw.githubusercontent.com/jy-yuan/KIVI/main/docs/long_bench.md
 
 [3] Wonbeom Lee et al (2024). **InfiniGen: Efficient Generative Inference of Large Language Models with Dynamic KV Cache Management**. arXiv, 2406.19707v1. 조회 2026-09-22.  
 https://arxiv.org/pdf/2406.19707v1
 
-[4] SNU Computer Architecture Lab (발행일 미상). **InfiniGen official repository README**. 공식 웹 자료, 스냅샷 f6a08e32c16d. 조회 2026-09-21.  
+[4] SNU Computer Architecture Lab (발행일 미상). **InfiniGen official repository README**. GitHub · InfiniGen, 스냅샷 f6a08e32c16d. 조회 2026-09-21.  
 https://raw.githubusercontent.com/snu-comparch/InfiniGen/main/README.md
 
 [5] Zirui Liu et al (2024). **KIVI: A Tuning-Free Asymmetric 2bit Quantization for KV Cache**. arXiv, 2402.02750v2. 조회 2026-09-22.  

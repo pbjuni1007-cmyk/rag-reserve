@@ -660,9 +660,9 @@ InfiniGen은 CPU KV pool에 캐시를 두고 다음 레이어에 필요한 항�
 
 ## domain-5
 
-**기술:** InfiniGen · **주장 종류:** 저자 보고 결과
+**기술:** InfiniGen · **주장 종류:** 팀 추론
 
-InfiniGen은 KV 전송을 줄이는 대신 attention 예측과 alpha·partial weight 설정에 의존한다. 설정을 높이면 메모리 부담이 커지고 예측 실패는 문서 근거 누락이나 지연 변동으로 연결될 수 있다.
+논문 결과: InfiniGen은 필요한 KV를 예측해 전송량을 줄이며, partial weight ratio를 높이면 partial weights와 key cache의 메모리 사용량이 증가한다. 팀 추론: 예측 누락이 기업 문서의 근거 보존과 응답 지연에 미치는 영향은 업무 데이터로 확인해야 한다.
 
 **조건:** 민감도 실험은 OPT-6.7B, 입력 1920·출력 128토큰, batch 8, WinoGrande accuracy 조건이다. alpha가 커지면 더 많은 KV를 fetch하고, partial weight ratio 증가는 partial weights와 key cache overhead를 증가시킨다. 목표 업무에서는 alpha·ratio별 attention miss rate, 근거 토큰 누락률, 조항 recall, p95/p99 지연, CPU·GPU 메모리와 PCIe 전송량을 측정해야 한다.
 

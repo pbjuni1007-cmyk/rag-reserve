@@ -6,6 +6,7 @@
 !/docs/
 !/eval/
 !/experiments/
+!/output/
 !/rag/
 !/reports/
 !/scripts/
@@ -16,6 +17,7 @@
 !/experiments/embedding-benchmark/
 !/experiments/latency-20260922/
 !/experiments/retrieval-experiments-20260921/
+!/output/pdf/
 !/reports/latest/
 !/tests/fixtures/
 !/experiments/retrieval-experiments-20260921/chunks/
@@ -122,6 +124,8 @@
 !/experiments/retrieval-experiments-20260921/vectors/e5-380-25.npy
 !/experiments/retrieval-experiments-20260921/vectors/e5-380-50.npy
 !/experiments/retrieval-experiments-20260921/vectors/e5-common.npy
+!/output/pdf/RAG-Design_판교-7반_김기현+김도현+박병준+홍수정.pdf
+!/output/pdf/RAG-Output_판교_7반_김기현+김도현+박병준+홍수정.pdf
 !/pyproject.toml
 !/rag/__init__.py
 !/rag/budget.py
