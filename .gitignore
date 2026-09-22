@@ -1,0 +1,25 @@
+# Local credentials and runtime state
+.env
+.env.*
+!.env.example
+.venv/
+__pycache__/
+.pytest_cache/
+.cache/
+.local/
+tmp/
+outputs/
+*.egg-info/
+.DS_Store
+data/papers/
+data/web_snapshots/
+# Private assignment and development administration
+/RAG*.md
+/docs/evaluation/
+/docs/*plan*.md
+/docs/implementation-status.md
+/docs/guardrails*.md
+/docs/design.md
+/docs/source/team-design*
+/docs/source/*before-*
+/scripts/design_pdf.py
