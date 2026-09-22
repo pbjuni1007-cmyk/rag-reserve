@@ -110,11 +110,12 @@ def test_two_insufficient_attempts_stop_without_assessment_or_more_rewrites(tmp_
 def test_invalid_assessment_after_single_repair_drives_retrieval_rewrite(tmp_path):
     bad = assessment()
     bad["claims"][0]["references"][0]["chunk_id"] = "fabricated"
-    p = pipeline(tmp_path, [review(), bad, bad, queries(" revised"), review(), assessment()])
+    bad_patch = {"patches": [{"target_id": "claims:0:reference:0", "chunk_id": "fabricated", "quote": bad["claims"][0]["references"][0]["quote"]}]}
+    p = pipeline(tmp_path, [review(), bad, bad_patch, queries(" revised"), review(), assessment()])
     _, result, _, _ = p.research_technology("KIVI", queries()["queries"])
     assert result["status"] == "ok"
-    assert [c[0] for c in p.gateway.calls].count("research_kivi_0_repair") == 1
-    assert any("fabricated" in error for error in p.gateway.calls[3][2]["missing_reasons"])
+    assert [c[0] for c in p.gateway.calls].count("research_kivi_0_repair_0") == 1
+    assert any("supplied same-technology source chunk" in error for error in p.gateway.calls[3][2]["missing_reasons"])
 
 
 @pytest.mark.parametrize("change", ["duplicate_facet", "unknown_id", "other_tech", "duplicate_id", "missing_reason"])
@@ -196,7 +197,7 @@ def report_fixture(tmp_path):
     synth = [claim("KIVI", "tradeoff", kind="team_inference"), claim("InfiniGen", "tradeoff", kind="team_inference")]
     extra, _ = collect_evidence({"synthesis": {"claims": synth}}, chunks())
     claims = {**joined["claims"], **extra}
-    report = {"summary_claim_ids": ["synthesis-1", "synthesis-2"], "synthesis_claims": synth,
+    report = {"summary_claim_ids": ["synthesis-1", "market-1"], "synthesis_claims": synth,
               "sections": [{"title": title, "claim_ids": [cid for cid, c in claims.items() if c["perspective"] in perspectives]}
                            for title, perspectives in [("기술 성숙도", {"research_kivi", "research_infinigen"}),
                                                        ("시장성", {"market"}), ("이해관계자", {"stakeholder"}),

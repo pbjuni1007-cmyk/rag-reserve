@@ -95,7 +95,8 @@ def test_neighbors_reserved_deduplicated_and_token_limited():
     assert [c['id'] for c in selected] == ['4', '0', '1']
     assert sum(len(c['text'].split()) for c in selected) == 9
     assert '검색 미확인과 원문 부재는 다르다' in BASE
-    assert '80% pool' in BASE and '기업 문서업무 미검증' in BASE
+    assert '표·그림의 수치와 그 실험을 설명하는 앞뒤 문맥을 연결' in BASE
+    assert '논문에서 확인한 실험과 목표 업무의 검증 상태를 구분' in BASE
 
 
 def test_target_condition_neighbor_pages_have_reserved_candidate_priority():

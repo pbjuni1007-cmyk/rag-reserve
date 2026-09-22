@@ -72,10 +72,14 @@ def test_retryable_failure_stops_after_two_retries_and_keeps_each_reservation(se
     with pytest.raises(APIError, match="reservation retained") as failure:
         gateway.generate("research", "Use supplied evidence", "short input")
 
-    assert calls == ["responses"] * 3
-    assert len(delays) == 2 and delays[1] > delays[0] > 0
-    assert len(entries(settings)) == 3
-    assert gateway.budget.summary()["unsettled_calls"] == 3
+    attempts = 3 if status == 429 else 1
+    assert calls == ["responses"] * attempts
+    assert len(delays) == attempts - 1
+    assert len(entries(settings)) == attempts
+    assert gateway.budget.summary()["unsettled_calls"] == attempts
+    receipts = [json.loads(p.read_text()) for p in (tmp_path / 'out/calls').glob('*.json')]
+    assert len(receipts) == attempts
+    assert all(r['status'] == 'failed' and r['retryable'] == (status == 429) for r in receipts)
     assert all("charged_estimate_krw" not in entry for entry in entries(settings))
     assert "sensitive" not in str(failure.value)
 
@@ -106,7 +110,7 @@ def test_invalid_retry_limit_is_rejected_before_any_request(settings, tmp_path, 
     assert entries(settings) == []
 
 
-def test_success_after_timeout_settles_only_the_successful_attempt(settings, tmp_path, monkeypatch):
+def test_success_after_429_settles_only_the_successful_attempt(settings, tmp_path, monkeypatch):
     gateway = Gateway(settings, "recovered", tmp_path / "out")
     calls = []
 
@@ -115,7 +119,7 @@ def test_success_after_timeout_settles_only_the_successful_attempt(settings, tmp
             return {"input_tokens": 100}
         calls.append(payload)
         if len(calls) == 1:
-            raise TimeoutError()
+            raise urllib.error.HTTPError("https://example.invalid", 429, "hidden", {}, None)
         return completed()
 
     monkeypatch.setattr(gateway, "request", request)
@@ -127,7 +131,7 @@ def test_success_after_timeout_settles_only_the_successful_attempt(settings, tmp
     expected = ledger[0]["reserved_krw"] + gateway.budget.cost(100, 200)
     assert gateway.budget.summary()["conservative_total_krw"] == round(expected, 4)
     assert calls[0] == calls[1]
-    assert calls[0]["reasoning"]["effort"] == settings.get("OPENAI_REASONING_EFFORT")
+    assert calls[0]["reasoning"]["effort"] == "medium"
     assert calls[0]["max_output_tokens"] == settings.integer("LLM_MAX_OUTPUT_TOKENS", 1)
 
 
@@ -209,6 +213,7 @@ def test_resume_reuses_only_an_exact_request(settings, tmp_path, monkeypatch, ch
     monkeypatch.setattr(first, "request", lambda *args: {"input_tokens": 100} if args[0] == "responses/input_tokens" else completed("original answer"))
     first.generate("research", "instructions", "input")
     if change == "reasoning":
+        settings.values["LLM_REASONING_PROFILE"] = "fixed"
         settings.values["OPENAI_REASONING_EFFORT"] = "high"
     elif change == "output_cap":
         settings.values["LLM_MAX_OUTPUT_TOKENS"] = "2048"

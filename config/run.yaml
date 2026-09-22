@@ -6,6 +6,7 @@ overlap_tokens: 50
 top_k: 5
 evidence_token_budget: 6500
 adjacent_token_budget: 2800
+assessment_evidence_token_budget: 6500
 source_discovery_config: config/source-discovery.yaml
 papers:
   - id: kivi

@@ -29,6 +29,16 @@ class CitationPatches(Strict):
     patches: list[CitationPatch] = Field(min_length=1)
 
 
+class ReferencePatch(Strict):
+    target_id: str
+    chunk_id: str
+    quote: str
+
+
+class ReferencePatches(Strict):
+    patches: list[ReferencePatch] = Field(min_length=1, max_length=1)
+
+
 class ClaimPatch(Strict):
     target_id: str
     claim: Claim
@@ -112,10 +122,19 @@ def plan_repairs(value, errors, content, source_chunks):
             bad = [(j, ref) for j, ref in enumerate(claim['references'])
                    if ref['chunk_id'] not in lookup or len(normalized(ref['quote'])) < 12
                    or normalized(ref['quote']) not in normalized(lookup[ref['chunk_id']]['text'])]
-            if not bad or any(ref['chunk_id'] not in lookup for _, ref in bad):
+            if not bad:
                 return None
             for j, ref in bad:
                 target = f'{collection}:{index}:reference:{j}'
+                if ref['chunk_id'] not in lookup:
+                    relevant = [deepcopy(c) for c in chunks
+                                if c.get('technology') in (None, claim['technology'], 'both')]
+                    units.append(RepairUnit('reference', target, ReferencePatches,
+                        {'target_id': target, 'claim': deepcopy(claim), 'reference': deepcopy(ref),
+                         'errors': failures, 'chunks': relevant,
+                         'correction': 'Replace only this invalid reference with a supplied chunk ID and its exact quotation.'},
+                        collection, index, j))
+                    continue
                 units.append(RepairUnit('citation', target, CitationPatches,
                     {'target_id': target, 'claim': deepcopy(claim), 'reference': deepcopy(ref),
                      'errors': failures, 'chunks': [deepcopy(lookup[ref['chunk_id']])]}, collection, index, j))
@@ -148,6 +167,39 @@ def plan_repairs(value, errors, content, source_chunks):
     return units or None
 
 
+def source_verbatim_quote(quote, source):
+    """Restore only PDF word-wrap hyphens through one unique source span.
+
+    The saved quotation is the original source substring, never a rewritten
+    source. Other wording, numbers and punctuation cannot be repaired here.
+    """
+    if normalized(quote) in normalized(source):
+        return quote
+    text = normalized(quote)
+    pattern = []
+    for i, char in enumerate(text):
+        if i and text[i - 1].isalpha() and char.isalpha():
+            pattern.append(r'(?:-\s+)?')
+        if char == '-' and i and i + 1 < len(text) and text[i - 1].isalpha() and text[i + 1].isalpha():
+            pattern.append(r'-\s*')
+        else:
+            pattern.append(r'\s+' if char.isspace() else re.escape(char))
+    matches = list(re.finditer(''.join(pattern), source)) if text else []
+    return matches[0].group() if len(matches) == 1 else quote
+
+
+def restore_verbatim_references(value, source_chunks):
+    """Restore uniquely aligned typography only; preserve IDs and all claims."""
+    result = deepcopy(value)
+    lookup = {chunk['id']: chunk['text'] for chunk in source_chunks}
+    for collection in ('claims', 'synthesis_claims'):
+        for claim in result.get(collection, []):
+            for ref in claim.get('references', []):
+                if ref['chunk_id'] in lookup:
+                    ref['quote'] = source_verbatim_quote(ref['quote'], lookup[ref['chunk_id']])
+    return result
+
+
 def apply_patch(value, unit, patch):
     """Copy-and-merge; reject absent/duplicate/unknown IDs or non-target changes."""
     patch = unit.schema.model_validate(patch).model_dump()
@@ -159,7 +211,17 @@ def apply_patch(value, unit, patch):
     if len(patches) != 1 or patches[0]['target_id'] != unit.target_id:
         raise ValueError('Patch IDs must match the single requested target exactly once')
     item = patches[0]
-    if unit.kind == 'citation':
+    if unit.kind == 'reference':
+        claim = result[unit.collection][unit.index]
+        chunk = next((c for c in unit.content['chunks'] if c['id'] == item['chunk_id']), None)
+        if chunk is None or chunk.get('technology') not in (None, claim['technology'], 'both'):
+            raise ValueError('Reference patch requires a supplied same-technology source chunk')
+        verbatim = source_verbatim_quote(item['quote'], chunk['text'])
+        quote = normalized(verbatim)
+        if len(quote) < 12 or quote not in normalized(chunk['text']):
+            raise ValueError('Reference patch quotation must exist in the supplied full source chunk')
+        claim['references'][unit.reference_index] = {'chunk_id': item['chunk_id'], 'quote': verbatim}
+    elif unit.kind == 'citation':
         original_ref = result[unit.collection][unit.index]['references'][unit.reference_index]
         original_ref['quote'] = item['quote']
     else:

@@ -49,6 +49,9 @@ class Settings:
     def validate_paid(self):
         if not self.get("OPENAI_API_KEY"):
             raise ValueError("OPENAI_API_KEY is missing")
+        if self.get("LLM_REASONING_PROFILE", "balanced") not in {"balanced", "fixed"}:
+            raise ValueError("Unsupported reasoning profile")
+        self.integer("RAG_MAX_CONCURRENCY", 3)
         # Pricing is verified for this exact model/tier only. No silent fallback.
         if self.get("OPENAI_MODEL") != "gpt-5.6-luna":
             raise ValueError("Model change requires an updated, reviewed pricing contract")
@@ -71,9 +74,29 @@ class Settings:
         if not 0 <= int(self.get("OPENAI_MAX_RETRIES", "2")) <= 2:
             raise ValueError("At most two API retries are permitted")
 
+    def reasoning_effort(self, purpose):
+        """Route known roles; unknown purposes retain the configured effort."""
+        fallback = self.get("OPENAI_REASONING_EFFORT", "max")
+        if self.get("LLM_REASONING_PROFILE", "balanced") == "fixed":
+            return fallback
+        parts = purpose.lower().split("_")
+        if any(part in {"repair", "query", "queries", "rewrite"} for part in parts) or purpose.startswith("retrieval_review"):
+            return "low"
+        if purpose == "synthesis_report" or purpose.startswith("synthesis_gaps_"):
+            return "max"
+        if parts[0] in {"research", "market", "stakeholder", "domain", "perspective", "facet"}:
+            return "medium"
+        return fallback
+
     def public(self):
         keys = ("OPENAI_MODEL", "OPENAI_REASONING_EFFORT", "PRICING_CHECKED_AT", "USD_TO_KRW",
                 "OPENAI_INPUT_USD_PER_MILLION_TOKENS", "OPENAI_OUTPUT_USD_PER_MILLION_TOKENS",
                 "PROJECT_BUDGET_KRW", "PROJECT_SPEND_LIMIT_KRW", "BUDGET_COST_MULTIPLIER",
                 "LLM_MAX_INPUT_TOKENS", "LLM_MAX_OUTPUT_TOKENS", "EMBEDDING_MODEL", "EMBEDDING_REVISION")
-        return {key: self.get(key) for key in keys}
+        return {**{key: self.get(key) for key in keys},
+                "LLM_REASONING_PROFILE": self.get("LLM_REASONING_PROFILE", "balanced"),
+                "RAG_MAX_CONCURRENCY": str(self.integer("RAG_MAX_CONCURRENCY", 3)),
+                "effective_reasoning_efforts": {purpose: self.reasoning_effort(purpose) for purpose in
+                    ("research_queries", "rewrite", "retrieval_review", "research", "market", "stakeholder",
+                     "domain", "market_reassessment_facet_costs", "synthesis_report_repair",
+                     "synthesis_report", "synthesis_gaps_0", "unknown")}}

@@ -1,15 +1,13 @@
 # SUMMARY
 
-[팀 추론] 공개 근거의 목표 도메인 잠정 TRL은 3–4로 평가한다. CUDA/Triton 구현과 여러 모델·LongBench·ShareGPT형 실험은 실험실 검증을 보이지만, 기업 IT 문서 검토의 정확도·지연·동시성 및 운영 검증은 제공 근거에서 확인되지 않아 TRL 5로 올릴 근거는 없다. [4, 물리 p.6] [4, 물리 p.2] [4, 물리 p.9] [4, 물리 p.1]
+**KIVI · InfiniGen** · [팀 추론] KIVI는 GPU 메모리·배치 여력을 사용자와 인프라 담당자에게 제공하지만 양자화 회귀와 결과 확인 부담을 남긴다. InfiniGen은 KV 전송 오버헤드 절감을 기대하게 하지만 CPU KV pool, alpha·partial weight, 예측 누락 여부 검증이 운영·사용자 부담이 된다. [5, 물리 p.8] [5, 물리 p.6] [3, 물리 p.6] [3, 물리 p.2] [3, 물리 p.9] [3, 물리 p.13] [1, snapshot block 17, character 0]
 
-[팀 추론] 공개 정보상 목표 업무 기준 잠정 TRL은 3–4(기술 자체의 실험실 검증 상한 4)다. OPT·Llama-2 평가와 오프로딩 구현은 확인되지만, 기업 IT 문서 검토 Agentic AI의 대표 사용조건·SLO·지속운용은 검증되지 않았다. [2, 물리 p.2] [2, 물리 p.9]
+**KIVI · InfiniGen** · [팀 추론] KIVI는 GPU KV 메모리가 병목이고 품질 회귀시험을 통과할 때 도입 후보이며, InfiniGen은 장문·대배치의 CPU–GPU KV 전송이 병목이고 CPU 메모리·PCIe를 확보할 때 후보가 된다. 문서 Agent 품질과 운영지표 검증 전에는 우위를 확정하지 않는다. [5, 물리 p.2] [2, snapshot block 1, character 0] [3, 물리 p.2] [3, 물리 p.9] [3, 물리 p.11] [5, 물리 p.6] [3, 물리 p.12] [1, snapshot block 15, character 0]
 
-[팀 추론] KIVI의 A100·Llama-2-7B·ShareGPT wall-clock과 InfiniGen의 A6000·OPT·FlexGen 대비 speedup은 조건이 달라 기업 문서업무의 공통 우열이나 직접 순위를 제시하지 않는다. [4, 물리 p.8] [4, 물리 p.7] [4, 물리 p.2] [2, 물리 p.12] [2, 물리 p.9]
+**InfiniGen** · [팀 추론] InfiniGen: CPU 메모리와 PCIe를 활용하는 장문·대배치 offloading이 병목이면 H2O·FlexGen·INT4 대비 검토 가치가 있지만, GPU 내 KV 양자화만 필요한 환경에는 복잡도가 커질 수 있다. [3, 물리 p.11] [3, 물리 p.2]
 
 **대상 기술:** KIVI / InfiniGen  
 **단일 도메인:** 기업의 IT 사업 문서 검토를 지원하는 Agentic AI
-
-> 검토본. PDF 변환 후 SUMMARY 반 페이지·페이지 배치는 사용자가 확인합니다.
 
 **적용 가정:** 공개 AiPMO 사례를 참고한 RFP·계약·사업 문서 검토. 장문과 반복 요청은 팀의 적용 가정이며 SK AX 내부 구조·기술 도입 사실이 아님.
 
@@ -19,105 +17,105 @@
 
 **출처 사실 · research_kivi-1**
 
-KIVI는 조정 없이 동작하는 비대칭 2-bit KV 캐시 양자화로, 키는 채널별·값은 토큰별로 처리하고 완성 그룹만 압축한다. 그룹을 못 이룬 잔여 캐시는 full precision으로 보존해 어텐션에서 결합한다. [4, 물리 p.2]
+KIVI는 키 캐시를 채널별, 값 캐시를 토큰별로 2비트 양자화하고, 스트리밍에 맞지 않는 키 캐시는 토큰 그룹과 잔여 FP 캐시로 분할해 정확도와 처리 효율을 함께 확보한다. [5, 물리 p.2] [5, 물리 p.6]
 
-**조건:** 논문 p2의 방법 설명에 근거한다. 키는 per-channel, 값은 per-token이며 grouped/residual 분할을 사용한다. 구체적인 group size와 residual length는 실험별로 달라지고, Agentic AI의 기업 IT 문서·도구호출 조건은 미확인이다.
+**조건:** 논문 KIVI v2의 Llama/Llama-2, Falcon, Mistral 계열 평가와 자동회귀 추론의 prefill·decoding 구조를 전제로 한다. 키 캐시는 채널별, 값 캐시는 토큰별로 처리하고, 완전한 그룹을 이루지 못한 잔여 캐시는 FP로 유지한다.
 
-**한계:** 잔여 키·값 캐시는 full precision으로 남으므로 전체 KV 캐시가 모두 2-bit가 되는 방식은 아니다. GPU 구현에는 CUDA와 Triton이 사용되지만, 기업 IT 문서 검토에서의 정확도·지연은 제공 근거에서 확인되지 않는다.
+**한계:** 이 원리는 KV 캐시 메모리와 디코딩 비용을 줄이는 방법으로 확인되지만, 기업 IT 문서 검토 Agent의 정확도나 검색·도구 호출 품질까지 직접 검증한 결과는 아니다.
 
 ## KIVI · research_kivi-2
 
 **저자 보고 결과 · research_kivi-2**
 
-저비트 설정은 모델·캐시 구조와 그룹·잔여 길이에 민감하다. Falcon의 multi-query attention에서 논문은 정확도 유지를 위해 4-bit가 필요하고 2-bit는 큰 정확도 하락 가능성이 있다고 보고했으며, group size 128은 성능을 낮추고 잔여 길이 효과도 일정하지 않았다. [4, 물리 p.6] [4, 물리 p.7]
+KIVI는 모델 구조와 설정에 따라 정확도 손실이 커질 수 있다. 특히 이미 KV가 압축된 Falcon의 2비트 설정과 큰 group size는 대표 태스크의 품질 저하 위험을 높인다. [5, 물리 p.6] [5, 물리 p.7] [5, 물리 p.9]
 
-**조건:** Table 3의 관련 조건은 Falcon의 multi-query attention과 16-bit·4-bit·2-bit 비교이며, 표에 제시된 작업 지표는 CoQA·TruthfulQA·GSM8K이다. Table 5의 그룹·잔여 길이 ablation은 Llama2-13B의 GSM8K에서 group size 32·64·128 및 residual length 32·64·96·128을 비교한다. 해당 발췌에서 장비·배치·입출력 길이·반복 횟수·소프트웨어 설정은 미확인이다.
+**조건:** KIVI v2 Table 3의 모델·정밀도·비교 기준은 Falcon-7B의 16bit, KIVI-2, KIVI-4이며, 정확도 지표와 세부 데이터셋은 발췌상 일부 미확인이다. Table 5는 Llama2-13B, GSM8K, group size 32·64·128 및 residual length 실험이며, group size 128에서 17.29로 감소했다.
 
-**한계:** 이는 논문 실험에서 관찰된 조건부 제약이지 모든 모델이나 기업 문서 검토 업무의 보편적 결과가 아니다. Falcon의 4-bit·2-bit 관찰과 Table 5의 group/residual ablation은 서로 다른 실험 조건이며 목표 도메인 일반화는 미확인이다.
+**한계:** 검색 발췌에서 확인된 한계는 Falcon·GSM8K 등 논문 벤치마크에 관한 것이다. 기업 문서 검토의 사실성, 인용 정확도, 장문 반복 요청에서의 손실 크기는 미확인이다.
 
 ## KIVI · research_kivi-3
 
 **저자 보고 결과 · research_kivi-3**
 
-Figure 5의 wall-clock 실험은 ShareGPT 기반 합성 workload(평균 입력 161·출력 338토큰)에서 Llama-2-7B의 KIVI(R32/R128)와 FP16을 단일 A100 80GB로 비교해, 유사 peak memory에서 batch 최대 4배·throughput 2.35–3.47배를 보고했다. [4, 물리 p.7] [4, 물리 p.8]
+KIVI의 효율 이득은 ShareGPT 기반 합성 서비스 워크로드에서 확인됐다. Llama-2-7B와 A100 80GB 환경에서 FP16 대비 유사 메모리로 배치와 처리량을 비교한 결과다. [5, 물리 p.7] [5, 물리 p.8]
 
-**조건:** 모델은 Llama-2-7B, baseline은 FP16, KIVI residual length는 32와 128이다. 입력·출력 길이는 각각 평균 161·338토큰이며, ShareGPT 기반 synthetic workload를 사용했다. batch는 out-of-memory까지 증가시켰고 비교 기준은 유사한 maximum memory usage이다. 지표는 wall-clock 기반 peak memory·throughput·최대 batch size이며, 단일 NVIDIA A100 80GB에서 측정된 결과로 기술된다. 정밀도는 논문 전체에서 KIVI가 2-bit 방식으로 제시되지만 Figure 5의 variant별 정밀도 구분은 미확인이다.
+**조건:** KIVI v2 Figure 5의 효율 실험은 ShareGPT 기반 합성 워크로드, 평균 입력 161토큰·출력 338토큰, Llama-2-7B, 2비트 KIVI residual length 32·128, FP16 baseline, 단일 NVIDIA A100 80GB를 사용했다. 배치는 메모리 한계까지 증가시켜 비교했으며 시작·최종 배치 수, 측정 소프트웨어와 반복 횟수는 발췌상 미확인이다. 지표는 최대 메모리와 throughput이다.
 
-**한계:** 조건은 arXiv 2402.02750v2의 p7–8 Figure 5 실험이다. workload는 실제 기업 문서가 아니라 ShareGPT 기반 합성 입력이다. Figure 5 발췌에서는 KIVI-2와 KIVI-4의 구분, 절대 batch 크기, latency·accuracy 수치, 반복 횟수와 세부 소프트웨어 설정이 검색 미확인이다.
+**한계:** 이는 실제 기업 Agent 서비스가 아닌 합성 워크로드의 단일 GPU 실험이다. 문서 길이·동시 요청·출력 분포가 달라지면 동일한 처리량과 배치 이득을 보장할 수 없다.
 
 ## KIVI · research_kivi-4
 
 **팀 추론 · research_kivi-4**
 
-공개 근거의 목표 도메인 잠정 TRL은 3–4로 평가한다. CUDA/Triton 구현과 여러 모델·LongBench·ShareGPT형 실험은 실험실 검증을 보이지만, 기업 IT 문서 검토의 정확도·지연·동시성 및 운영 검증은 제공 근거에서 확인되지 않아 TRL 5로 올릴 근거는 없다. [4, 물리 p.6] [4, 물리 p.2] [4, 물리 p.9] [4, 물리 p.1]
+KIVI의 공개 근거 기반 잠정 TRL은 4로 판단한다. 공개 구현과 여러 LLM·벤치마크의 실험실 검증은 있으나, 대표적인 기업 IT 문서 Agent 운용환경과 지속 운영까지의 실증은 확인되지 않는다. [5, 물리 p.6] [5, 물리 p.1] [5, 물리 p.13]
 
-**조건:** 근거가 확인된 환경은 Llama/Llama-2·Falcon·Mistral 모델, LongBench와 생성 과제, CUDA/Triton GPU 구현, ShareGPT 기반 합성 wall-clock workload이다. 이는 실험실 수준의 공개 검증으로 해석했으며, 기업 IT 사업 문서의 장문·반복·동시 요청과 Agentic 도구 연계는 대표 사용조건 검증으로 포함하지 않았다.
+**조건:** 판단 근거는 KIVI 논문 v2와 공개 저장소 정보다. 논문은 Hugging Face Transformers 기반 구현, CUDA 역양자화·행렬곱 융합, Triton 커널, Llama/Llama-2·Falcon·Mistral 평가, LM-Eval·LongBench·Needle-in-a-Haystack 실험을 제시한다. 실험실 GPU 조건과 공개 코드까지는 확인되지만 실제 기업 문서 검토 Agent의 관련환경·운용환경 시스템 시연 조건은 미확인이다.
 
-**한계:** TRL은 논문이 인증한 값이 아니라 공개 논문·코드와 실험 범위를 바탕으로 한 팀 추론이다. source_metadata상 논문은 2402.02750v2(2024, SHA-256 df31ef32d71bfb280c533c5db8220cadf5ef42076bf45d82ba4c8da8e50ea5f4), 공식 README snapshot은 version baa1095e6edf8263bbf20507f0d1ce444c3cb57d97d5f5677c2ac19c3b934bbf, date unknown이다. 제공 발췌에는 코드 license 문구가 없어 license는 검색 미확인이지 부재가 아니다. 독립 재현·생산 운용·기업 IT 문서 검토 실증도 미확인이다.
+**한계:** TRL은 논문이 인증한 값이 아니라 공개 실험 범위에 대한 팀의 잠정 해석이다. 코드 공개와 다수 벤치마크만으로 대표 사용조건 검증인 TRL 5 이상으로 높이지 않았으며, 라이선스·운영 SLA·다중 GPU 및 Agent 도구 연동 검증은 확인되지 않았다.
 
 ## InfiniGen · research_infinigen-1
 
 **출처 사실 · research_infinigen-1**
 
-InfiniGen은 이전 층의 attention 입력과 다음 층의 부분 query weight·key cache로 다음 attention을 추정해, 필요한 KV만 CPU 풀에서 GPU로 동적 prefetch하고 KV cache pool은 CPU에 유지한다. [2, 물리 p.2] [2, 물리 p.1]
+InfiniGen은 다음 레이어의 attention pattern을 미리 추정해 필요한 KV만 GPU로 전송하는 구조로, 오프라인 weight skewing과 CPU KV pool 관리가 전송량 절감의 핵심이다. [3, 물리 p.2] [3, 물리 p.9]
 
-**조건:** 설계 조건은 오프로딩 기반 추론이다. Prefill에서 partial weights를 만들고, decoding의 Layer i−1에서 Layer i attention을 추정한 뒤 CPU KV pool에서 필요한 항목을 GPU로 가져온다. 이는 논문 구조 설명이며 기업 문서 검토 workload의 실험 조건은 제공 자료에서 확인되지 않는다.
+**조건:** 근거 문서는 arXiv:2406.19707v1(2024-06-28)이다. 디코딩 중 Layer i−1의 attention input, Layer i의 partial query weight와 partial key cache로 다음 attention pattern을 추정하고, alpha 임계값으로 KV를 동적으로 선택한다. prefill 단계에서 partial weight를 생성하며, CPU 메모리의 KV pool에서 비빈번 토큰을 제거한다.
 
-**한계:** 선택적 prefetch가 full-cache와 수학적으로 동일하거나 무손실이라는 보장은 제공 발췌에서 확인되지 않는다. 기업 IT 문서 검토를 지원하는 Agentic AI에서의 적합성도 unknown이다.
+**한계:** 이는 offloading 기반 생성 추론에서의 KV 전송·관리 메커니즘에 대한 확인이며, 기업 IT 사업 문서 검토 Agentic AI의 실제 워크플로우에서 효과가 검증된 것은 아니다.
 
 ## InfiniGen · research_infinigen-2
 
-**팀 추론 · research_infinigen-2**
+**저자 보고 결과 · research_infinigen-2**
 
-선택적 가져오기를 full-cache와 동일한 무손실 동작으로 단정할 수 없다. 80% KV 축출 비교의 OPT-13B FIFO perplexity는 WikiText-2 30.99·PTB 33.84였고, alpha와 부분 가중치 비율은 정확도·지연·메모리 절충을 만든다. [2, 물리 p.11] [2, 물리 p.12] [2, 물리 p.13]
+InfiniGen은 attention pattern의 반복 간 변화와 레이어·query별 KV 요구량 차이를 처리하지만, alpha와 partial weight ratio가 정확도·지연·메모리 간 절충을 만들며 오류율은 확인되지 않았다. [3, 물리 p.5] [3, 물리 p.6] [3, 물리 p.13]
 
-**조건:** 문서 기준은 arXiv:2406.19707v1의 Table 2(p11), Figure 17(p12), 부분 가중치 설명(p13)이다. Table 2는 sequence length 2048의 WikiText-2·PTB perplexity(lower is better)를 다루며, OPT-13B는 100%=10.55/12.78, 80-FIFO%=30.99/33.84, 80-LRU%=10.55/12.78, 80-Counter%=10.55/12.78(Wiki/PTB 순)이다. 표의 모델은 OPT-6.7B·13B·30B와 Llama-2-7B·13B이며 정밀도, 입력·출력 분리 길이, batch, 장비, 측정/시뮬레이션 여부는 발췌에서 미확인이다. Figure 17은 alpha·partial weight ratio별 accuracy와 inference latency 실험이며, 부분비율 sweep의 alpha=4와 선택 ratio=0.3이 보고되지만 해당 sweep의 모델·정밀도·길이·batch·장비·데이터셋·baseline·측정/시뮬레이션 여부는 미확인이다.
+**조건:** 논문은 partial weight ratio를 높여도 일정 범위 이후 accuracy 차이가 크지 않다고 보고했으며 ratio 0.3을 선택했다. ratio가 두 배가 되면 partial weights와 key cache의 메모리 overhead가 두 배가 된다고 설명한다. alpha와 ratio 민감도는 OPT-6.7B, 입력 1920, 출력 128, batch 8, WinoGrande 조건에서 평가했다.
 
-**한계:** Table 2의 80-FIFO/LRU/Counter는 KV cache memory limit에서의 축출 정책 비교이지 InfiniGen의 selective prefetch와 동일한 실험이 아니다. 따라서 FIFO perplexity를 InfiniGen selective prefetch의 정확도 손실로 직접 귀속하지 않는다. Figure 17은 별도의 alpha·partial-weight sweep이며 기업 문서업무에서의 재현은 unknown이다.
+**한계:** 제공된 발췌에는 attention 예측 오류율, PCIe 세대별 민감도, 장시간 반복 요청에서의 안정성 수치가 없다. ratio 0.3 선택은 논문 실험의 accuracy와 memory overhead 절충이며 보편적 최적값으로 볼 수 없다.
 
 ## InfiniGen · research_infinigen-3
 
-**출처 사실 · research_infinigen-3**
+**저자 보고 결과 · research_infinigen-3**
 
-확인된 속도 비교는 OPT 6.7B·13B·30B에서 입력 1,920·출력 128·배치 4로 수행되었고, RTX A6000–Xeon Gold 6136·PCIe 3.0×16에서 INT4·H2O·InfiniGen의 FlexGen 대비 speedup을 비교했다. [2, 물리 p.12] [2, 물리 p.9]
+InfiniGen은 RTX A6000·PCIe 3.0×16 환경에서 OPT-13B의 2048 길이·batch 20 지연을 FlexGen·H2O·INT4와 비교해 1.63×–32.93× speedup으로 보고했다. [3, 물리 p.9] [3, 물리 p.11]
 
-**조건:** 문서 기준은 arXiv:2406.19707v1, Section 5.1 및 Figure 16(b)이다. 확인된 모델은 OPT 6.7B·13B·30B, 입력 1,920 tokens, 출력 128 tokens, batch 4이다. 장비는 NVIDIA RTX A6000 48GB, Intel Xeon Gold 6136, DDR4-2666 96GB, CPU-GPU PCIe 3.0×16이다. 지표는 FlexGen 대비 speedup이고 비교 대상은 INT4·H2O·InfiniGen이다. InfiniGen 정밀도, Figure 16 speedup 데이터셋, 정확한 측정/시뮬레이션 여부는 제공 발췌에서 미확인이다.
+**조건:** 출처 버전은 arXiv:2406.19707v1(2024-06-28)이다. Figure 14의 지연 실험은 OPT-13B, sequence length 2048(입력 1920·출력 128), batch 20, NVIDIA RTX A6000 48GB, Intel Xeon Gold 6136, DDR4-2666 96GB, PCIe 3.0×16에서 수행했고 prefill·decoding latency를 FlexGen, UVM, H2O(KV budget 20%), FlexGen+INT4와 비교했다. 지표는 inference latency이며 시뮬레이션이 아닌 시스템 실행 결과로 제시된다. 모델 정밀도와 해당 latency 실험의 데이터셋은 미확인이다. 별도 정확도 실험은 OPT 6.7B/13B/30B 및 Llama-2 7B/13B, 5-shot COPA·OpenBookQA·WinoGrande·PIQA·RTE와 WikiText-2·PTB를 사용했다.
 
-**한계:** 이는 논문 오프로딩 benchmark의 setup이며 기업 IT 문서 검토의 정확도·지연·SLO를 확인한 결과가 아니다. INT4는 비교법의 정밀도 명칭일 뿐 InfiniGen의 정밀도는 확인되지 않는다.
+**한계:** 수치는 논문이 제시한 특정 단일 시스템·모델·길이·배치의 실측 결과이며, 다른 GPU·PCIe 세대·동시성 또는 목표 업무에 직접 순위화할 수 없다. 기업 문서 검토 데이터와 Agentic AI 업무 지연은 검증되지 않았다.
 
 ## InfiniGen · research_infinigen-4
 
 **팀 추론 · research_infinigen-4**
 
-공개 정보상 목표 업무 기준 잠정 TRL은 3–4(기술 자체의 실험실 검증 상한 4)다. OPT·Llama-2 평가와 오프로딩 구현은 확인되지만, 기업 IT 문서 검토 Agentic AI의 대표 사용조건·SLO·지속운용은 검증되지 않았다. [2, 물리 p.2] [2, 물리 p.9]
+InfiniGen의 공개 논문 근거상 잠정 TRL은 4 수준(보수적 범위 3~4)이며, 여러 LLM의 실험실 검증은 있으나 기업 업무 운용과 독립 재현까지는 실증되지 않았다. [3, 물리 p.2] [3, 물리 p.9] [3, 물리 p.14]
 
-**조건:** 근거 문서는 arXiv:2406.19707v1이다. 평가 범위는 modern offloading-based inference system, OPT 6.7B·13B·30B와 Llama-2 7B·13B, COPA·OpenBookQA·WinoGrande·PIQA·RTE few-shot task, WikiText-2·PTB 언어모델링 데이터셋이다. 일반 실험 장비로 NVIDIA RTX A6000 48GB, Intel Xeon Gold 6136, DDR4-2666 96GB, PCIe 3.0×16이 확인된다. InfiniGen official repository README의 source_metadata version은 f6a08e32c16d3fdbe8839a95775f2b1e2a2690e36e6ee9d8ec683d6c24e89a90이며 date는 unknown이다. 기업 문서 유형·대표 사용조건·운용 SLO·동시 요청·지속 운용은 제공 자료에서 확인되지 않는다.
+**조건:** 판단 기준은 arXiv:2406.19707v1(2024-06-28)의 논문 구현과 RTX A6000 기반 실험, OPT·Llama-2 모델 크기 변화, batch·sequence length 변화, downstream accuracy·perplexity·latency·memory 분석이다. 이는 실험실 시스템 검증에 해당하는 근거로 보았으며, 대표 사용조건 또는 실제 지속운용 검증으로 확대하지 않았다. 공개 저장소가 source_metadata에 식별되지만, 제공 발췌만으로 독립 실행 성공이나 라이선스 적합성을 확인하지 않았다.
 
-**한계:** TRL은 팀의 공개근거 기반 잠정 판단이며 논문이 직접 인증한 값이 아니다. 논문 구현과 benchmark는 실험실 검증의 근거일 뿐 대표 사용조건 검증의 근거는 아니므로 4에서 5로 올리지 않았다. 공개 코드 자체도 TRL을 높이는 충분조건이 아니며, 독립 재현·배포 검증·저장소 라이선스는 제공 자료에서 확인되지 않는다.
+**한계:** TRL은 논문이 인증한 값이 아니라 공개 실험 범위에 대한 팀의 보수적 해석이다. 논문 구현은 대표 LLM·배치·sequence length 실험을 제공하지만, 기업 IT 사업 문서 검토 Agentic AI의 장문·반복·동시 요청, 운영환경 SLA, 장애복구, 보안, 독립 재현과 공식 라이선스·실행 절차는 제공 발췌에서 확인되지 않는다.
 
 # 시장성
 
 | 비교 질문 | KIVI | InfiniGen |
 | --- | --- | --- |
-| 채택 동기·공개 신호 | **팀 추론 · market-1**<br><br>공개 코드와 ICML 논문은 KIVI를 Llama·Mistral·Falcon 및 LongBench 등에서 평가한 생태계 신호를 제공하지만, 기업 IT 문서 검토 Agentic AI의 공개 채택·고객 사례·도입률은 제공 자료에서 확인되지 않는다. [4, 물리 p.1] [4, 물리 p.2] [4, 물리 p.9]<br><br>**조건:** 논문 source_metadata는 arXiv:2402.02750v2(2024, SHA-256 df31ef32d71bfb280c533c5db8220cadf5ef42076bf45d82ba4c8da8e50ea5f4), 공식 README snapshot은 version baa1095e6edf8263bbf20507f0d1ce444c3cb57d97d5f5677c2ac19c3b934bbf(date unknown)이다. 확인된 범위는 Llama/Llama-2·Falcon·Mistral, 생성 과제와 LongBench이며, RFP·계약·사업 문서와 Agentic 도구호출의 채택·운영 검증은 아니다. 장문·반복·동시 요청은 팀 분석 가정이고 SK AX 내부 구조·KIVI 채택 사실이 아니다.<br><br>**한계:** 코드 공개와 논문 평가·LongBench 결과는 기술·생태계 신호이지 기업 채택 증거가 아니다. 검색 발췌에서 채택이 확인되지 않았다는 뜻이며 논문 전체에 사례가 없거나 비공개 도입이 없다고 단정하지 않는다. 제공 발췌에는 코드 license 문구가 없어 라이선스는 검색 미확인이지 부재가 아니다. 기업 문서 검토의 정확도·지연·동시성·운영 SLO도 미확인이다. | **팀 추론 · market-4**<br><br>공개 논문 구현·공식 저장소와 OPT·Llama-2의 few-shot·언어모델링 평가는 생태계 신호지만, 기업 IT 문서 검토 Agentic AI의 공개 채택·고객 사례·도입률은 제공 자료에서 확인되지 않는다. [2, 물리 p.2] [2, 물리 p.9] [3, snapshot block 8, character 0]<br><br>**조건:** 논문 source_metadata는 arXiv:2406.19707v1(2024, SHA-256 267d689a1ded953f076eb93976c0ebeac1ad02029f1f7c9dd1c947aa05d7cb5f), 공식 README snapshot은 version f6a08e32c16d3fdbe8839a95775f2b1e2a2690e36e6ee9d8ec683d6c24e89a90(date unknown)이다. 평가 범위는 modern offloading-based inference system, OPT 6.7B·13B·30B, Llama-2 7B·13B, COPA·OpenBookQA·WinoGrande·PIQA·RTE와 WikiText-2·PTB 중심이다. 기업 RFP·계약·사업 문서, Agentic 도구호출, 장문·반복·동시 요청의 채택·운영 검증은 아니다.<br><br>**한계:** 논문 구현과 benchmark는 기술 성숙·생태계 신호이지 고객 채택의 증거가 아니다. 제공 발췌에서 채택 사례가 확인되지 않았다는 뜻이며 논문 전체에 사례가 없거나 비공개 도입이 없다고 단정하지 않는다. 저장소 license, 독립 재현, production 배포와 운영 SLO도 제공 자료에서 확인되지 않는다. |
-| 대안·연동 | **적용 가정 · market-2**<br><br>GPU KV 메모리 절감과 플러그앤플레이를 우선하면 KIVI를 후보로 두고, CPU KV 풀·선택적 prefetch가 필요한 InfiniGen과 정확도 기준선 FP16을 동일 문서업무로 비교하는 선택 구조가 타당하다. [4, 물리 p.2] [2, 물리 p.1] [2, 물리 p.2] [4, 물리 p.8] [4, 물리 p.6] [4, 물리 p.7]<br><br>**조건:** KIVI Figure 5(p7–8, arXiv:2402.02750v2)는 ShareGPT 기반 synthetic workload(평균 입력 161·출력 338토큰), Llama-2-7B, residual length 32·128의 KIVI와 FP16을 단일 NVIDIA A100 80GB에서 비교했다. batch를 OOM까지 늘려 wall-clock peak memory·throughput을 비교했고, 유사 maximum memory에서 최대 4배 batch와 2.35×∼3.47× throughput을 보고했다. Figure 5의 KIVI-2/KIVI-4 정밀도 구분, 절대 batch, latency·accuracy, 반복 횟수·세부 software 설정은 검색 미확인이다. InfiniGen Figure 16(b)는 별도 조건으로 OPT 6.7B·13B·30B, 입력 1,920·출력 128토큰, batch 4, RTX A6000 48GB·Xeon Gold 6136·DDR4-2666 96GB·PCIe 3.0×16에서 FlexGen 대비 speedup을 비교했다. InfiniGen 정밀도·데이터셋·정확한 측정/시뮬레이션 여부는 미확인이다.<br><br>**한계:** 이는 공개 사례에서 추론한 적용 시나리오이며 목표 업무의 구매 우위나 두 논문의 성능 순위가 아니다. KIVI는 grouped cache만 양자화하고 residual key/value는 full precision으로 남긴다. Falcon의 multi-query 조건에서 4-bit 필요와 2-bit 정확도 저하 가능성이 보고됐지만 일반화는 unknown이다. InfiniGen의 선택적 prefetch도 full-cache와 수학적으로 동일하거나 무손실이라고 단정하지 않는다. | **적용 가정 · market-5**<br><br>CPU 메모리와 PCIe 계층을 활용해 장문 KV 전송을 줄이는 조건이면 InfiniGen을 검토하되, KIVI·FP16과 비교해야 하며 80% FIFO/LRU/Counter 축출 결과나 alpha 실험을 문서업무 우위로 직접 해석해서는 안 된다. [2, 물리 p.1] [2, 물리 p.2] [2, 물리 p.11] [2, 물리 p.12] [2, 물리 p.13] [4, 물리 p.2]<br><br>**조건:** Table 2(p11, arXiv:2406.19707v1)는 sequence length 2048의 WikiText-2·PTB perplexity(lower is better)를 OPT-6.7B·13B·30B와 Llama-2-7B·13B의 100% 및 80-FIFO/LRU/Counter pool에서 비교한다. OPT-13B의 Wiki/PTB는 100% 10.55/12.78, 80-FIFO 30.99/33.84, 80-LRU 10.55/12.78, 80-Counter 10.55/12.78이다. 정밀도, 입력·출력 분리 길이, batch, 장비, 측정/시뮬레이션 여부는 발췌에서 미확인이다. Figure 17(p12)은 alpha와 partial-weight ratio별 accuracy·inference latency를 보이며, p13은 alpha=4와 ratio=0.3 선택을 설명한다. 해당 sweep의 모델·정밀도·길이·batch·장비·데이터셋·baseline·측정/시뮬레이션 여부는 미확인이다.<br><br>**한계:** Table 2의 80% FIFO/LRU/Counter는 KV cache memory limit에서의 축출 정책 비교이지 InfiniGen의 selective prefetch 결과가 아니다. 따라서 FIFO perplexity를 InfiniGen의 정확도 손실로 직접 귀속하지 않는다. Figure 17의 alpha·partial-weight sweep도 별도 실험이며, 선택적 가져오기가 full-cache와 무손실로 동일하다는 결론이나 기업 문서업무 우위로 일반화할 수 없다. |
-| 비용·유지 부담 | **미확인 · market-3**<br><br>2-bit KV 압축과 CUDA/Triton 구현은 GPU 메모리·배치 효율의 후보 편익을 보이지만, 잔여 full-precision 캐시를 포함한 금액 TCO·도입·운영비와 코드 라이선스는 제공 발췌에서 확인되지 않는다. [4, 물리 p.1] [4, 물리 p.6] [4, 물리 p.2] [4, 물리 p.8]<br><br>**조건:** KIVI 구현은 CUDA와 Triton GPU kernel을 사용한다. 논문 source_metadata는 arXiv:2402.02750v2(2024, SHA-256 df31ef32d71bfb280c533c5db8220cadf5ef42076bf45d82ba4c8da8e50ea5f), 공식 README snapshot은 version baa1095e6edf8263bbf20507f0d1ce444c3cb57d97d5f5677c2ac19c3b934bbf(date unknown)이다. 효율 근거인 Figure 5(p7–8)는 ShareGPT synthetic workload, 평균 입력 161·출력 338토큰, Llama-2-7B, residual 32·128, FP16 baseline, 단일 A100 80GB에서 OOM까지 batch를 늘린 실제 wall-clock peak memory·throughput 비교이며, 최대 4× batch·2.35×∼3.47× throughput을 보고한다. 반복 횟수·software 세부·절대 batch·기업업무 비용 전환은 미확인이다.<br><br>**한계:** 제공 자료에서 금전적 CAPEX/OPEX, cloud·on-premise 가격, 통합 인력, support 조건, 독립 재현·production 운용과 기업 문서 정확도 검증은 확인되지 않는다. CUDA/Triton과 실험실 메모리 효율은 비용 절감의 직접 금액 근거가 아니며, residual cache가 full precision이라는 구현 조건도 남는다. 제공 코드 발췌의 license 문구 미확인은 라이선스 부재가 아니다. | **미확인 · market-6**<br><br>CPU KV 풀·동적 prefetch와 partial weights는 GPU·전송 자원 절감의 후보 편익이지만, CPU/DRAM·PCIe·예측 오버헤드를 포함한 금액 TCO·통합·운영비와 라이선스는 제공 발췌에서 확인되지 않는다. [2, 물리 p.1] [2, 물리 p.2] [2, 물리 p.13] [2, 물리 p.9] [3, snapshot block 8, character 0]<br><br>**조건:** 논문 source_metadata는 arXiv:2406.19707v1(2024, SHA-256 267d689a1ded953f076eb93976c0ebeac1ad02029f1f7c9dd1c947aa05d7cb5f), 공식 README snapshot은 version f6a08e32c16d3fdbe8839a95775f2b1e2a2690e36e6ee9d8ec683d6c24e89a90(date unknown)이다. Figure 16(b)의 알려진 속도 비교는 OPT 6.7B·13B·30B, 입력 1,920·출력 128토큰, batch 4, RTX A6000 48GB, Intel Xeon Gold 6136, DDR4-2666 96GB, PCIe 3.0×16에서 INT4·H2O·InfiniGen의 FlexGen 대비 speedup이며, 논문은 해당 장비에서 실행한 실험으로 기술하지만 반복 횟수·software version·wall-clock 측정 프로토콜·데이터셋과 InfiniGen 정밀도는 발췌에서 미확인이다. Figure 17은 alpha=4에서 partial-weight ratio를 조정한 accuracy·latency 실험이고 ratio=0.3을 선택하지만, 모델·정밀도·입출력 길이·batch·장비·데이터셋·baseline·측정/시뮬레이션 여부는 미확인이다. Table 2의 80% eviction perplexity는 별도 memory-limit 정책 실험이다.<br><br>**한계:** CPU/DRAM·PCIe, partial weights와 prediction은 논문 구조에서 추론되는 자원 항목이지 가격 근거가 아니다. Figure 17의 ratio 증가는 partial-weight·key-cache memory overhead를 키우지만 금액 절감으로 환산되지 않으며, selective prefetch의 무손실성이나 기업 문서업무 비용 효과도 확인되지 않는다. 제공 코드 발췌에서 저장소 license 문구가 확인되지 않는 것은 라이선스 부재를 뜻하지 않는다. |
+| 채택 동기·공개 신호 | **팀 추론 · market-1**<br><br>KIVI: 공개 논문·공식 코드와 LLM 벤치마크는 생태계 신호지만, 기업 IT 문서 검토 Agent의 공개 채택·상용 운영은 제공 범위에서 확인되지 않는다. [5, 물리 p.1]<br><br>[조건·한계·원문](citation_review.md#market-1) | **팀 추론 · market-4**<br><br>InfiniGen: 공개 논문·저장소와 OPT·Llama-2 실험은 offloading 구현의 성숙도 신호지만, 기업 IT 문서 검토 Agent의 공개 채택·상용 운영은 제공 범위에서 확인되지 않는다. [3, 물리 p.2] [3, 물리 p.9] [4, snapshot block 8, character 0]<br><br>[조건·한계·원문](citation_review.md#market-4) |
+| 대안·연동 | **팀 추론 · market-2**<br><br>KIVI: GPU KV 메모리와 배치 용량이 핵심 병목이면 AWQ·GPTQ나 시스템형 vLLM·S3보다 직접적인 선택지지만, MQA·GQA 모델은 4비트와 품질 회귀를 우선 검토해야 한다. [5, 물리 p.8] [5, 물리 p.9] [2, snapshot block 1, character 0]<br><br>[조건·한계·원문](citation_review.md#market-2) | **팀 추론 · market-5**<br><br>InfiniGen: CPU 메모리와 PCIe를 활용하는 장문·대배치 offloading이 병목이면 H2O·FlexGen·INT4 대비 검토 가치가 있지만, GPU 내 KV 양자화만 필요한 환경에는 복잡도가 커질 수 있다. [3, 물리 p.11] [3, 물리 p.2]<br><br>[조건·한계·원문](citation_review.md#market-5) |
+| 비용·유지 부담 | **팀 추론 · market-3**<br><br>KIVI: 금전적 도입·운영비는 산정할 수 없으며, Transformers 통합과 CUDA·Triton 커널 검증, 잔여 FP 캐시 관리 및 업무별 품질 회귀시험이 주요 부담으로 남는다. [5, 물리 p.6] [5, 물리 p.2]<br><br>[조건·한계·원문](citation_review.md#market-3) | **팀 추론 · market-6**<br><br>InfiniGen: 금전적 도입·운영비는 공개 자료로 산정할 수 없고, CPU KV pool·PCIe 전송 관리와 partial weight·alpha 설정의 메모리·품질 검증 부담을 추가한다. [3, 물리 p.9] [3, 물리 p.13] [3, 물리 p.12]<br><br>[조건·한계·원문](citation_review.md#market-6) |
 
 # 이해관계자
 
 | 비교 질문 | KIVI | InfiniGen |
 | --- | --- | --- |
-| 문서 검토자 | **적용 가정 · stakeholder-1**<br><br>문서 검토자 관점의 장문·반복·동시 요청 시나리오에서 KIVI는 GPU 메모리와 batch 여지를 넓힐 수 있지만, 잔여 캐시는 full precision이고 기업 문서 품질과 결과 대조 부담은 아직 검증되지 않았다. [1, snapshot block 15, character 0] [4, 물리 p.2] [4, 물리 p.7] [4, 물리 p.8] [4, 물리 p.9]<br><br>**조건:** KIVI arXiv:2402.02750v2(2024) p7–8 Figure 5는 Llama-2-7B, 논문상 2-bit KIVI와 FP16 baseline, residual length 32·128, ShareGPT 기반 synthetic workload(평균 input 161/output 338 tokens)를 사용했다. OOM까지 batch를 늘려 peak memory·throughput·maximum batch size를 wall-clock으로 비교했으며, 단일 NVIDIA A100 80GB에서 유사 maximum memory 기준 최대 4× batch와 2.35×–3.47× throughput을 보고했다. Figure 5의 KIVI-2/KIVI-4 variant별 정밀도·절대 batch·latency·accuracy·반복·software 설정은 검색 발췌에서 미확인이다. LongBench는 일반 benchmark의 부분 확인일 뿐 기업 문서·Agentic tool-call 결과는 unknown이다.<br><br>**한계:** 공개 AiPMO 업무 설명과 SK AX의 장문·반복·동시 요청 분석 가정을 KIVI 실험에 연결한 시나리오이지, 실제 사용자 인터뷰·도입·기업 문서 결과가 아니다. 잔여 key/value cache는 full precision이므로 전체 캐시가 모두 2-bit인 것도 아니다. | **적용 가정 · stakeholder-4**<br><br>문서 검토자 관점의 장문 요청 시나리오에서 InfiniGen은 CPU KV pool과 필요한 항목의 동적 prefetch로 GPU 압박을 낮출 여지가 있지만, 선택적 가져오기를 무손실로 단정할 수 없고 조항 보존·문서 품질은 미검증이다. [1, snapshot block 15, character 0] [2, 물리 p.1] [2, 물리 p.2] [2, 물리 p.11]<br><br>**조건:** InfiniGen arXiv:2406.19707v1(2024) p1–2의 CPU KV pool·동적 prefetch 구조를 AiPMO의 RFP·계약 검토 설명에 연결한 시나리오이며, 기업 조항 보존 결과가 아니다. p11 Table 2는 sequence length 2048의 WikiText-2·PTB perplexity(lower is better)를 OPT-6.7B·13B·30B와 Llama-2-7B·13B에서 100%와 80% KV-cache memory limit의 FIFO·LRU·Counter 축출 정책으로 비교한다. OPT-13B의 100%는 Wiki/PTB 10.55/12.78, 80-FIFO는 30.99/33.84, 80-LRU·Counter는 각각 10.55/12.78이다. 정밀도·input/output 분리 길이·batch·장비·측정/시뮬레이션 여부는 검색 발췌에서 미확인이다. 이 표는 축출 정책 perplexity 실험이지 selective prefetch 또는 기업 문서 정확도 검증이 아니며 target workload는 unknown이다.<br><br>**한계:** CPU pool과 selective prefetch는 장문 생성의 GPU 메모리 부담을 줄일 수 있는 설계·적용 시나리오로 해석되지만, full-cache와 수학적으로 동일하거나 무손실이라는 보장은 제공 발췌에서 확인되지 않는다. Table 2의 80% 축출 결과를 selective prefetch의 기업 문서 품질 결과로 귀속하지 않는다. |
-| AI·인프라 운영자 | **팀 추론 · stakeholder-2**<br><br>AI 운영자는 KIVI의 CUDA/Triton 커널과 full-precision 잔여 캐시를 관측하고 group size·residual length를 조정해야 한다. A100 wall-clock 효율은 확인됐지만 문서 SLO·동시성·반복운영은 미검증이다. [4, 물리 p.6] [4, 물리 p.2] [4, 물리 p.7] [4, 물리 p.8]<br><br>**조건:** KIVI p6은 CUDA 기반 dequantization·matrix multiplication fusion, Triton group-wise kernel과 weight-only 호환을 설명한다. p7 Table 5 ablation은 Llama2-13B의 GSM8K에서 group size 32·64·128 및 residual length 32·64·96·128을 비교하며, group size 128의 성능 저하와 잔여 길이별 일관되지 않은 정확도 패턴을 보고한다. 이 ablation의 정밀도·장비·batch·입출력 길이·반복·software 설정은 검색 발췌에서 미확인이다. 별도로 p7–8 Figure 5의 실제 wall-clock 결과는 Llama-2-7B, 2-bit KIVI/FP16 baseline, ShareGPT synthetic workload(평균 input 161/output 338), residual length 32·128, 단일 A100 80GB, OOM까지 batch 증가, peak memory·throughput·maximum batch 비교 조건이며, 반복 횟수와 software 세부는 미확인이다. 기업 문서 SLO·동시성·장애·품질 관측 기준은 unknown이다.<br><br>**한계:** CUDA/Triton 통합, full-precision 잔여 캐시의 관측, group·residual 조정 필요성은 기술 구조와 조건부 실험에서 도출한 팀 해석이다. 그룹·잔여 길이 민감도는 모든 모델이나 기업 문서업무의 보편적 결과가 아니며, production 운용은 검색 발췌에서 확인되지 않는다. | **팀 추론 · stakeholder-5**<br><br>AI 운영자는 InfiniGen의 동적 prefetch와 CPU–GPU 전송을 관측하면서 alpha·partial-weight ratio·메모리 overhead를 조정해야 한다. Figure 17의 latency/accuracy sweep은 확인됐지만 문서 SLO와 동시성 우위는 미검증이다. [2, 물리 p.2] [2, 물리 p.12] [2, 물리 p.13] [2, 물리 p.9]<br><br>**조건:** p12 Figure 17은 alpha와 partial weight ratio별 accuracy·inference latency를 보인다. p13은 partial-ratio sweep을 alpha 4에서 수행하고 ratio 0.3을 선택했으며, ratio 증가에 따른 partial weights·key cache memory overhead와 0.3 초과에서 뚜렷하지 않은 accuracy 차이를 설명한다. 그러나 Figure 17의 모델·정밀도·input/output 길이·batch·장비·데이터셋·baseline·측정/시뮬레이션·반복은 검색 발췌에서 미확인이다. 별도 Figure 16(b)는 OPT 6.7B·13B·30B, input 1,920/output 128, batch 4에서 INT4·H2O·InfiniGen의 FlexGen 대비 speedup을 비교하며, RTX A6000 48GB·Xeon Gold 6136·DDR4-2666 96GB·PCIe 3.0×16 환경이 확인된다. 이 Figure 16(b)의 InfiniGen 정밀도·데이터셋·측정/시뮬레이션·반복과 기업 문서 SLO·동시성은 unknown이며 Figure 17 조건과 합치지 않는다.<br><br>**한계:** alpha·partial-weight ratio 조정과 CPU–GPU 전송·메모리 관측을 운영 부담으로 보는 것은 팀 해석이다. Figure 17의 sweep은 기업 문서업무 검증이 아니며 Table 2의 축출 실험과도 다르므로, 특정 SLO나 운영 우위를 단정할 수 없다. |
-| 구매·보안·관리 담당자 | **팀 추론 · stakeholder-3**<br><br>구매·보안·책임 담당자는 KIVI 논문과 공식 저장소를 식별할 수 있지만, 제공 발췌에서 코드 license 문구와 기업 문서 독립 재현은 확인되지 않았다. 사용권·보안·오류 책임·검수기준은 별도 확정이 필요하다. [4, 물리 p.1] [4, 물리 p.6] [4, 물리 p.9]<br><br>**조건:** source_metadata상 논문은 arXiv:2402.02750v2(2024), SHA-256 df31ef32d71bfb280c533c5db8220cadf5ef42076bf45d82ba4c8da8e50ea5f4이다. KIVI official repository README snapshot version은 baa1095e6edf8263bbf20507f0d1ce444c3cb57d97d5f5677c2ac19c3b934bbf이며 date는 unknown이다. 확인 범위는 Llama/Llama-2·Falcon·Mistral, LongBench·생성 과제, CUDA/Triton GPU 구현이다. Falcon multi-query attention의 Table 3은 16-bit·4-bit·2-bit와 CoQA·TruthfulQA·GSM8K 조건을 다루지만, 해당 발췌의 장비·batch·반복·software 설정과 기업 문서 독립 재현·배포·접근통제·책임·검수 기준은 unknown이다. license는 검색 미확인이다.<br><br>**한계:** 제공된 검색 발췌에서 license 문구가 확인되지 않는다는 뜻이지 라이선스 부재를 의미하지 않는다. 논문·저장소 식별과 공개 benchmark는 사용권, 데이터보호, 기업 문서 오류의 책임경계 또는 production 적합성을 확정하지 않으며, 이 관점 비교는 실제 인터뷰 결과가 아니다. | **팀 추론 · stakeholder-6**<br><br>구매·보안·인프라·책임 담당자는 CPU에 KV pool을 두는 설계와 논문·저장소를 식별할 수 있지만, 제공 발췌에서 license·접근통제·보존·독립 재현은 확인되지 않았다. 데이터 이동과 오류 책임·검수기준은 별도 확인이 필요하다. [2, 물리 p.1] [2, 물리 p.2] [2, 물리 p.9]<br><br>**조건:** source_metadata상 논문은 arXiv:2406.19707v1(2024), SHA-256 267d689a1ded953f076eb93976c0ebeac1ad02029f1f7c9dd1c947aa05d7cb5f이다. InfiniGen official repository README snapshot version은 f6a08e32c16d3fdbe8839a95775f2b1e2a2690e36e6ee9d8ec683d6c24e89a90이며 date는 unknown이다. p1–2의 CPU KV pool·동적 prefetch와 p9의 RTX A6000–Xeon–PCIe 환경은 확인되지만, 제공 발췌에서 저장소 license, CPU KV 접근통제·보존정책, GPU·CPU 이동의 보안 통제, 독립 재현·배포 검증, 기업 문서 오류 책임·검수기준은 unknown이다.<br><br>**한계:** CPU KV pool 배치와 CPU–GPU 이동은 보안 위반으로 확인된 것이 아니라 구매·보안·인프라 검토가 필요한 설계 조건이다. license 문구가 검색되지 않는다는 것은 라이선스 부재가 아니며, 이 관점 비교는 실제 담당자 인터뷰 결과가 아니다. |
+| 문서 검토자 | **팀 추론 · stakeholder-1**<br><br>KIVI는 KV 캐시 양자화로 문서 검토 Agent의 동시 처리 여력을 높일 가능성이 있지만, RFP·계약서의 인용·요약 정확도는 별도 검증해야 해 사용자 확인 부담이 남는다. [5, 물리 p.8] [1, snapshot block 15, character 0]<br><br>[조건·한계·원문](citation_review.md#stakeholder-1) | **적용 가정 · stakeholder-4**<br><br>InfiniGen은 CPU KV pool에서 필요한 토큰만 GPU로 가져와 장문·반복 요청의 지연 완화를 기대하게 하지만, 예측 누락이 문서 인용·근거 품질에 미치는 영향은 사용자가 검증해야 한다. [3, 물리 p.2] [3, 물리 p.9] [1, snapshot block 15, character 0]<br><br>[조건·한계·원문](citation_review.md#stakeholder-4) |
+| AI·인프라 운영자 | **팀 추론 · stakeholder-2**<br><br>KIVI는 Hugging Face·CUDA·Triton 기반 구현으로 운영 통합을 검토할 수 있으나, group size·residual length별 품질과 메모리·지연 회귀를 관측하는 부담은 운영자에게 남는다. [5, 물리 p.6] [5, 물리 p.7]<br><br>[조건·한계·원문](citation_review.md#stakeholder-2) | **팀 추론 · stakeholder-5**<br><br>InfiniGen은 CPU 메모리와 GPU 사이의 동적 prefetch로 전송 병목을 줄일 수 있지만, alpha·partial weight ratio·PCIe 상태와 CPU·GPU 자원을 함께 관측하는 운영 부담이 커진다. [3, 물리 p.13] [3, 물리 p.9] [3, 물리 p.12]<br><br>[조건·한계·원문](citation_review.md#stakeholder-5) |
+| 구매·보안·관리 담당자 | **팀 추론 · stakeholder-3**<br><br>KIVI는 GPU 메모리 절감과 공개 구현으로 인프라 부담을 낮출 여지가 있지만, 모델 구조별 2비트 손실 위험과 라이선스·보안·결과 책임 기준 확인이 구매 승인 조건이다. [5, 물리 p.6] [5, 물리 p.1] [5, 물리 p.9]<br><br>[조건·한계·원문](citation_review.md#stakeholder-3) | **팀 추론 · stakeholder-6**<br><br>InfiniGen은 GPU 증설 대신 CPU 메모리·PCIe 구성을 활용하는 선택지지만, 특정 하드웨어 의존성과 CPU 내 KV 보관의 보안·라이선스·복구 기준 확인이 구매 승인의 전제다. [3, 물리 p.9] [3, 물리 p.11] [3, 물리 p.2]<br><br>[조건·한계·원문](citation_review.md#stakeholder-6) |
 
 # 도메인 적용
 
 | 비교 질문 | KIVI | InfiniGen |
 | --- | --- | --- |
-| 적합 조건 | **적용 가정 · domain-1**<br><br>RFP·계약·사업계획서·발주 문서를 검토하고 반복 업무를 Agent가 수행하는 시나리오에서 KIVI는 KV 메모리 절감 후보지만, 문서 사실성·근거 인용·도구호출 지연과 동시성 적합성은 아직 unknown이다. [1, snapshot block 15, character 0] [1, snapshot block 17, character 0] [4, 물리 p.8] [4, 물리 p.2]<br><br>**조건:** 도메인 근거는 AiPMO 공개 snapshot(source_metadata version 6dbb089c1432e38eaf7f5d93f2d7fa2b4a03ef31a35c9878463f4589f6d77997, date unknown)이다. 장문·반복·동시 요청과 Agent 도구호출은 팀의 적용 가정이다. KIVI arXiv:2402.02750v2 p7–8 Figure 5의 효율 anchor는 Llama-2-7B, KIVI residual length 32·128, FP16 baseline, ShareGPT 기반 synthetic workload(평균 input 161/output 338 tokens), batch를 out-of-memory까지 증가, 단일 NVIDIA A100 80GB, wall-clock peak memory·throughput·max batch 비교다. 유사 maximum memory에서 최대 4× batch와 2.35×–3.47× throughput을 보고했다. 실제 장비 wall-clock 비교는 확인되지만 KIVI-2/KIVI-4 precision mapping, absolute batch, latency·accuracy, 반복 횟수·software detail 및 명시적 simulation 여부는 검색 발췌에서 미확인이다. 논문은 KIVI를 2-bit 방식으로 제시하되 key는 per-channel, value는 per-token으로 처리한다.<br><br>**한계:** AiPMO 공개 설명과 KIVI 논문 조건을 연결한 적용 시나리오이지 기업 문서업무의 결과가 아니다. KIVI의 2-bit 표기는 전체 KV가 2-bit라는 뜻이 아니며, grouped cache만 양자화하고 residual key/value와 local sliding window는 full precision으로 유지한다. SK AX 내부 구조·채택, 문서 정확도, 도구호출 연계·보안은 제공 자료 범위에서 확인되지 않는다. | **적용 가정 · domain-4**<br><br>RFP·계약·사업계획서·발주 문서를 장문으로 검토하는 Agentic AI에서 InfiniGen은 CPU KV pool과 GPU 선택적 prefetch를 쓰는 메모리 계층 후보지만, 문서 정확도·도구호출 지연·동시 요청 적합성은 아직 unknown이다. [1, snapshot block 15, character 0] [2, 물리 p.1] [2, 물리 p.2]<br><br>**조건:** InfiniGen arXiv:2406.19707v1 p1–2의 구조는 modern offloading-based inference system을 전제로 한다. Prefill에서 partial weights를 만들고 decoding의 Layer i−1에서 다음 Layer i attention을 추정한 뒤 CPU KV pool에서 필요한 항목을 GPU로 동적 prefetch한다. 실제 RFP·계약 문서의 모델·정밀도·입출력 길이·batch·CPU/GPU 구성·PCIe 조건·도구호출 흐름은 제공 자료에서 확인되지 않으며, 장문·반복·동시 요청은 팀의 적용 가정이다.<br><br>**한계:** CPU memory에 KV pool을 두고 GPU로 필요한 항목을 가져오는 오프로딩 인프라가 있는 경우를 상정한 적용 시나리오다. 선택적 prefetch가 full-cache와 수학적으로 동일하거나 무손실이라는 보장은 제공 근거에서 확인되지 않는다. 기업 문서의 정확도·지연·동시성·도구호출·보안 적합성 및 InfiniGen 채택 사실은 제공 자료에서 확인되지 않는다. |
-| 정확도·운영 위험 | **저자 보고 결과 · domain-2**<br><br>KIVI 저비트 정확도는 모델·attention 구조와 group/residual 설정에 민감하다. Falcon multi-query에서는 논문이 4-bit 정확도 유지와 2-bit 큰 하락 가능성을 보고했다. [4, 물리 p.6] [4, 물리 p.7]<br><br>**조건:** 문서 기준은 arXiv:2402.02750v2 Table 3·Table 5(p6–7)이다. Table 3은 Falcon multi-query에서 16-bit·4-bit·2-bit를 CoQA·TruthfulQA·GSM8K에 비교한다. Table 5는 Llama2-13B의 GSM8K에서 group size 32·64·128 및 residual length 32·64·96·128을 비교한다. 모델의 정확한 크기, input/output length, batch, hardware, 반복 횟수·software 및 measurement/simulation 여부는 제공 발췌에서 미확인이다. KIVI의 full-precision KV sliding window는 논문 조건으로 확인되지만 목표 기업 문서의 품질 지표는 unknown이다.<br><br>**한계:** Falcon의 4-bit·2-bit 관찰은 multi-query attention의 논문 실험에 한정되며 모든 모델이나 기업 문서 검토의 보편적 결과가 아니다. group size와 residual length 관찰도 별도 ablation이므로 목표 업무의 사실성·근거 인용·리스크 recall로 일반화할 수 없다. 잔여 KV와 sliding window가 full precision으로 남는 메모리 trade-off 및 보안 영향도 별도 검증이 필요하다. | **팀 추론 · domain-5**<br><br>OPT-13B의 80-FIFO KV-cache 제한은 WikiText-2·PTB perplexity 30.99·33.84로 100%의 10.55·12.78보다 높지만, 이는 selective prefetch 손실이 아니며 alpha·부분 가중치 비율은 정확도·지연 절충을 만든다. [2, 물리 p.11] [2, 물리 p.12] [2, 물리 p.13]<br><br>**조건:** arXiv:2406.19707v1 Table 2(p11)는 sequence length 2048의 WikiText-2·PTB에서 perplexity(lower is better)를 OPT-6.7B·13B·30B와 Llama-2-7B·13B의 100%와 80-FIFO/LRU/Counter% KV-cache memory-limit·축출 정책으로 비교한다. OPT-13B의 100%는 Wiki/PTB 10.55/12.78, 80-FIFO%는 30.99/33.84다. 정밀도, input/output 분리 길이, batch, hardware, baseline 외 측정/시뮬레이션 여부는 표 발췌에서 미확인이다. Figure 17(p12)은 alpha와 partial weight ratio별 accuracy·inference latency 실험이며, p13의 ratio sweep은 alpha=4, 선택 ratio=0.3이다. Figure 17의 모델·정밀도·입출력 길이·batch·장비·dataset·baseline·정확한 측정/시뮬레이션 여부는 제공 발췌에서 미확인이다.<br><br>**한계:** Table 2의 80-FIFO·LRU·Counter는 KV cache memory limit에서의 축출 정책 비교이지 InfiniGen selective prefetch 결과가 아니다. 따라서 FIFO perplexity를 InfiniGen prefetch의 정확도 손실로 직접 귀속하지 않는다. Figure 17은 별도의 alpha·partial-weight sweep이며, 선택적 가져오기를 무손실로 단정할 수 없다. 기업 IT 문서업무에서의 정확도·지연 재현은 unknown이다. |
-| 확인할 실험 | **팀 추론 · domain-3**<br><br>도입 전 동일한 RFP·계약 문서와 Agent 도구 chain에서 FP16과 KIVI를 A/B 비교해 사실성·근거 인용·리스크 recall, p50/p95 지연·peak memory·동시성별 오류와 SLO를 함께 측정해야 한다. [1, snapshot block 17, character 0] [4, 물리 p.8] [4, 물리 p.9] [4, 물리 p.6]<br><br>**조건:** 목표 실험은 같은 RFP·계약 문서, Agent prompt·tool chain, 모델·정밀도·입출력 길이·batch·장비·software에서 FP16과 KIVI를 비교하고 사실성, 근거 인용률, 리스크 recall, p50/p95 latency, peak memory, 동시성별 오류·SLO, 접근통제·보안 격리를 기록하는 설계다. 공개 효율 anchor는 arXiv:2402.02750v2 p7–8 Figure 5의 Llama-2-7B, residual 32·128, FP16, ShareGPT synthetic input/output 평균 161/338 tokens, OOM까지의 batch, 단일 A100 80GB, wall-clock peak memory·throughput·max batch 비교다. wall-clock 사실은 확인되지만 절대 batch, KIVI-2/KIVI-4 매핑, latency·accuracy, 반복 횟수·software detail 및 명시적 simulation 여부는 미확인이다. source_metadata는 논문 2402.02750v2(2024, SHA-256 df31ef32d71bfb280c533c5db8220cadf5ef42076bf45d82ba4c8da8e50ea5f4), 공식 README snapshot version baa1095e6edf8263bbf20507f0d1ce444c3cb57d97d5f5677c2ac19c3b934bbf(date unknown)이다.<br><br>**한계:** 동일 문서·모델·정밀도·입출력 길이·batch·장비·software를 고정하는 A/B 비교와 보안 격리 측정은 제안된 검증 설계이지 보고된 기업업무 결과가 아니다. LongBench와 ShareGPT 기반 효율 결과는 RFP·계약 문서 및 Agent 도구호출을 대체하지 않는다. 제공된 코드 발췌에 license 문구가 없어 라이선스는 검색 미확인이지 부재가 아니다. | **팀 추론 · domain-6**<br><br>검증은 같은 기업 문서·prompt·모델·정밀도·입출력 길이·batch·장비에서 full-cache, 기존 offloading, InfiniGen을 A/B 비교하고, 근거 정확도·누락·p50/p95 지연·CPU/GPU 메모리·전송량·동시성 SLO를 판정해야 한다. [2, 물리 p.2] [2, 물리 p.9] [2, 물리 p.12] [1, snapshot block 17, character 0]<br><br>**조건:** 목표 실험은 동일 문서·prompt·모델·정밀도·input/output length·batch·장비·software에서 full-cache, 기존 offloading baseline과 InfiniGen을 비교하고 근거 정확도·누락, p50/p95 latency, CPU/GPU memory, CPU-GPU transfer, 동시성별 오류·SLO, 접근통제·보안 격리를 기록하는 설계다. 공개 속도 anchor는 arXiv:2406.19707v1 Section 5.1·Figure 16(b)의 OPT 6.7B·13B·30B, input 1,920/output 128 tokens, batch 4, NVIDIA RTX A6000 48GB, Intel Xeon Gold 6136·DDR4-2666 96GB, PCIe 3.0×16이다. 비교 기준은 FlexGen 대비 speedup이며 INT4·H2O·InfiniGen을 비교한다. InfiniGen 자체 정밀도, Figure 16 speedup dataset, 정확한 측정/시뮬레이션 여부, 반복 횟수와 software detail은 제공 발췌에서 미확인이다. source_metadata는 논문 2406.19707v1(2024, SHA-256 267d689a1ded953f076eb93976c0ebeac1ad02029f1f7c9dd1c947aa05d7cb5f), 공식 README snapshot version f6a08e32c16d3fdbe8839a95775f2b1e2a2690e36e6ee9d8ec683d6c24e89a90(date unknown)이다.<br><br>**한계:** 동일 기업 문서에서의 full-cache·기존 offloading·InfiniGen 비교는 제안이며 공개된 목표업무 결과가 아니다. Figure 16(b)의 speedup은 기업 문서의 사실성·근거 누락·SLO·보안 격리를 검증하지 않으며 KIVI Figure 5와 모델·길이·batch·장비·baseline이 달라 직접 순위화할 수 없다. 제공된 InfiniGen 저장소 발췌에 license 문구가 없어 라이선스는 검색 미확인이지 부재가 아니며, 독립 재현·production 운용도 unknown이다. |
+| 적합 조건 | **팀 추론 · domain-1**<br><br>KIVI는 KV 캐시를 2비트로 줄이고 잔여 구간은 FP로 유지하므로, 장문·반복 문서 검토 Agent의 동시 처리 후보가 되지만 업무 품질 적합성은 간접 근거다. [5, 물리 p.2] [5, 물리 p.6] [5, 물리 p.8] [1, snapshot block 15, character 0]<br><br>[조건·한계·원문](citation_review.md#domain-1) | **적용 가정 · domain-4**<br><br>InfiniGen은 CPU KV pool에 캐시를 두고 다음 레이어에 필요한 항목만 GPU로 prefetch하므로 장문·반복 요청에 맞을 가능성이 있지만, CPU 메모리와 PCIe 계층을 전제로 한다. [3, 물리 p.2] [3, 물리 p.6] [1, snapshot block 15, character 0]<br><br>[조건·한계·원문](citation_review.md#domain-4) |
+| 정확도·운영 위험 | **저자 보고 결과 · domain-2**<br><br>KIVI는 2비트 압축 이득이 모델 구조와 설정에 좌우된다. Falcon의 이미 압축된 KV에서는 4비트가 필요할 수 있고, 큰 group size는 대표 태스크 정확도를 낮출 위험이 있다. [5, 물리 p.6] [5, 물리 p.7] [5, 물리 p.9]<br><br>[조건·한계·원문](citation_review.md#domain-2) | **저자 보고 결과 · domain-5**<br><br>InfiniGen은 KV 전송을 줄이는 대신 attention 예측과 alpha·partial weight 설정에 의존한다. 설정을 높이면 메모리 부담이 커지고 예측 실패는 문서 근거 누락이나 지연 변동으로 연결될 수 있다. [3, 물리 p.5] [3, 물리 p.9] [3, 물리 p.13]<br><br>[조건·한계·원문](citation_review.md#domain-5) |
+| 확인할 실험 | **팀 추론 · domain-3**<br><br>KIVI의 논문 평가는 일반·장문 생성과 메모리·처리량을 다루지만, 기업 문서 Agent의 정확도와 p95 지연을 검증하지 않아 업무 도입 판정에는 별도 시험이 필요하다. [5, 물리 p.6] [5, 물리 p.13] [5, 물리 p.8] [1, snapshot block 17, character 0]<br><br>[조건·한계·원문](citation_review.md#domain-3) | **팀 추론 · domain-6**<br><br>InfiniGen은 실제 GPU·CPU·PCIe 시스템에서 장문 batch 추론 지연을 측정했지만, 그 speedup은 기업 문서 Agent의 품질·동시성 성과로 전환되지 않아 별도 검증이 필요하다. [3, 물리 p.9] [3, 물리 p.11] [3, 물리 p.12]<br><br>[조건·한계·원문](citation_review.md#domain-6) |
 
 # 관점 간 상충과 한계
 
@@ -125,66 +123,75 @@ InfiniGen은 이전 층의 attention 입력과 다음 층의 부분 query weight
 
 **팀 추론 · synthesis-1**
 
-KIVI의 A100·Llama-2-7B·ShareGPT wall-clock과 InfiniGen의 A6000·OPT·FlexGen 대비 speedup은 조건이 달라 기업 문서업무의 공통 우열이나 직접 순위를 제시하지 않는다. [4, 물리 p.8] [4, 물리 p.7] [4, 물리 p.2] [2, 물리 p.12] [2, 물리 p.9]
+KIVI는 GPU 메모리·배치 여력을 사용자와 인프라 담당자에게 제공하지만 양자화 회귀와 결과 확인 부담을 남긴다. InfiniGen은 KV 전송 오버헤드 절감을 기대하게 하지만 CPU KV pool, alpha·partial weight, 예측 누락 여부 검증이 운영·사용자 부담이 된다. [5, 물리 p.8] [5, 물리 p.6] [3, 물리 p.6] [3, 물리 p.2] [3, 물리 p.9] [3, 물리 p.13] [1, snapshot block 17, character 0]
 
-**조건:** 비교 근거는 KIVI arXiv:2402.02750v2(2024, SHA-256 df31ef32d71bfb280c533c5db8220cadf5ef42076bf45d82ba4c8da8e50ea5f4) p7–8 Figure 5와 InfiniGen arXiv:2406.19707v1(2024, SHA-256 267d689a1ded953f076eb93976c0ebeac1ad02029f1f7c9dd1c947aa05d7cb5f) Section 5.1·Figure 16(b)이다. KIVI는 Llama-2-7B, 논문상 2-bit KIVI, residual length 32·128, FP16 baseline, ShareGPT 기반 synthetic workload(평균 input 161/output 338 tokens), OOM까지 batch를 늘린 wall-clock peak memory·throughput·maximum batch, 단일 NVIDIA A100 80GB 조건이며 최대 4× batch와 2.35×–3.47× throughput을 보고했다. Figure 5의 KIVI-2/KIVI-4 정밀도 매핑, 절대 batch, latency·accuracy, 반복·software 설정과 명시적 simulation 여부는 검색 미확인이다. InfiniGen은 OPT 6.7B·13B·30B, input 1,920/output 128 tokens, batch 4, RTX A6000 48GB·Xeon Gold 6136·DDR4-2666 96GB·PCIe 3.0×16에서 INT4·H2O·InfiniGen의 FlexGen 대비 speedup을 비교했으며, InfiniGen 정밀도·dataset·반복·software와 정확한 측정/시뮬레이션 여부는 검색 미확인이다. KIVI 공식 README snapshot version은 baa1095e6edf8263bbf20507f0d1ce444c3cb57d97d5f5677c2ac19c3b934bbf(date unknown), InfiniGen 공식 README snapshot version은 f6a08e32c16d3fdbe8839a95775f2b1e2a2690e36e6ee9d8ec683d6c24e89a90(date unknown)이다.
+**조건:** KIVI 2402.02750v2 Figure 5는 ShareGPT 기반 합성 워크로드, Llama-2-7B, 2비트 KIVI와 FP16(16비트) baseline, 평균 입력 161·출력 338토큰, 단일 NVIDIA A100 80GB에서 배치를 메모리 한계까지 늘려 최대 메모리와 throughput을 비교했다. 보고값은 최대 4배 batch와 2.35배∼3.47배 throughput이며 초기·최종 batch, 측정 소프트웨어·반복 횟수와 시뮬레이션 여부는 제공 발췌에서 미확인이다. KIVI 품질 부담은 Falcon-7B Table 3의 16비트·KIVI-2·KIVI-4 비교를 사용했으며 세부 데이터셋·지표는 일부 미확인이다. InfiniGen은 2406.19707v1의 offloading, alpha 선택, OPT-6.7B·입력 1920·출력 128·batch 8·WinoGrande 민감도와 partial weight ratio 0.3을 기준으로 했다. 업무 역할은 반복·정형 검토를 AI가 하고 전문가가 최종 판단하는 조건이다.
 
-**한계:** 두 결과의 workload·모델·정밀도·입출력 길이·batch·장비·baseline·지표가 달라 기업 IT 문서업무의 직접 우열로 해석하지 않는다. KIVI는 residual key/value를 full precision으로 유지하며, InfiniGen 선택적 prefetch도 full-cache와 동일하거나 무손실이라고 단정하지 않는다. 두 저장소의 license 문구는 제공 발췌에서 검색 미확인이지 부재가 아니며, 독립 재현·production 운용·목표 도메인 결과도 미확인이다.
+**한계:** 역할별 효익과 부담은 논문 실험과 업무 설명을 연결한 팀 해석이다. 기업 문서의 조항·인용·요약 품질, Agent 도구 호출, attention 예측 오류율, 장기 반복 운영, SLA·보안·공식 라이선스는 제공 근거에서 확인되지 않으며 논문 벤치마크 손실을 업무 오류로 환산하지 않았다.
 
 ## both · synthesis-2
 
 **팀 추론 · synthesis-2**
 
-InfiniGen의 Table 2 80% 축출 정책 perplexity와 Figure 17 alpha·부분 가중치 accuracy/latency sweep은 별도 실험이므로 selective prefetch의 무손실성이나 기업 문서 성능으로 결론낼 수 없다. [2, 물리 p.11] [2, 물리 p.12] [2, 물리 p.13] [2, 물리 p.2]
+KIVI는 GPU KV 메모리가 병목이고 품질 회귀시험을 통과할 때 도입 후보이며, InfiniGen은 장문·대배치의 CPU–GPU KV 전송이 병목이고 CPU 메모리·PCIe를 확보할 때 후보가 된다. 문서 Agent 품질과 운영지표 검증 전에는 우위를 확정하지 않는다. [5, 물리 p.2] [2, snapshot block 1, character 0] [3, 물리 p.2] [3, 물리 p.9] [3, 물리 p.11] [5, 물리 p.6] [3, 물리 p.12] [1, snapshot block 15, character 0]
 
-**조건:** 근거 문서는 arXiv:2406.19707v1(2024)의 Table 2(p11), Figure 17(p12), 부분 가중치 설명(p13)이다. Table 2는 sequence length 2048의 WikiText-2·PTB perplexity(lower is better)를 OPT-6.7B·13B·30B와 Llama-2-7B·13B의 100% 및 80-FIFO/LRU/Counter% KV-cache memory-limit·축출 정책으로 비교한다. OPT-13B의 Wiki/PTB는 100% 10.55/12.78, 80-FIFO 30.99/33.84, 80-LRU 10.55/12.78, 80-Counter 10.55/12.78이다. 정밀도, input/output 분리 길이, batch, 장비, 측정/시뮬레이션 여부는 발췌에서 미확인이다. Figure 17은 alpha와 partial-weight ratio별 accuracy·inference latency 실험이며, p13의 ratio sweep은 alpha=4에서 수행되고 ratio=0.3을 선택한다. 해당 sweep의 모델·정밀도·입출력 길이·batch·장비·dataset·baseline·정확한 측정/시뮬레이션 여부는 미확인이다. Table 2와 Figure 17 모두 기업 IT 문서 검토 Agentic AI의 정확도·지연 검증은 아니다.
+**조건:** KIVI 2402.02750v2의 채널별 key·토큰별 value KV 양자화와 MQA/GQA에서 KIVI-4를 권고한 조건을 GPU KV 메모리 병목 판단에 사용하고, LM-Eval의 CoQA exact match·TruthfulQA BLEU·GSM8K exact match를 품질 게이트로 둔다. InfiniGen 2406.19707v1의 후보 조건은 CPU KV pool과 선택적 prefetch, Figure 14의 OPT-13B·입력 1920·출력 128(시퀀스 2048)·batch 20·RTX A6000 48GB·Xeon Gold 6136·DDR4-2666 96GB·PCIe 3.0×16에서 UVM·H2O(KV budget 20%)·FlexGen·FlexGen+INT4와 prefill/decoding latency를 비교한 시스템 실행이다. 해당 latency 실험의 모델 정밀도·데이터셋은 미확인이고, 선행 accuracy는 WinoGrande로 평가됐다. 목표 업무는 RFP·계약서·사업계획서·발주 문서의 조항·요구사항 추출을 대상으로 인용 precision/recall, 요약 사실성, 도구 호출 성공률, p95 지연, 최대 동시성과 GPU·CPU 메모리·전송량을 full-KV baseline과 별도 측정한다.
 
-**한계:** Table 2의 80-FIFO/LRU/Counter는 KV-cache memory limit에서의 축출 정책 비교이지 InfiniGen selective prefetch의 정확도 실험이 아니다. Figure 17도 별도의 alpha·partial-weight sweep이므로 두 결과를 하나의 무손실성 또는 기업 문서업무 결과로 결합하지 않는다. 목표 업무의 문서 정확도·지연·동시성 재현은 unknown이다.
+**한계:** 시장 도입·업무 적합성은 공개 채택이나 생산운영으로 확인된 것이 아니다. KIVI와 InfiniGen의 선행 실험은 모델·정밀도·입출력 길이·배치·GPU·메모리 계층이 달라 직접 우열을 비교할 수 없고, 문서 Agent의 보안·라이선스·SLA도 제공 근거에서 미확인이다.
 
 ## 남은 근거 공백
 
-- Agentic AI가 기업 IT 사업 문서를 검토하는 실제 데이터와 에이전트 도구호출 환경에서 KIVI의 정확도·지연·동시성·운영 안정성은 unknown이다. (gap-research_kivi-1)
+- SK AX의 장문·반복·동시 요청 조건에서 KIVI의 정확도, 지연시간, 안정성은 직접 검증되지 않았다. (gap-research_kivi-1)
 
-- Figure 5 발췌에서 절대 batch 크기, KIVI-2/KIVI-4 구분, latency·accuracy, 반복 횟수와 세부 소프트웨어 설정은 검색 미확인이다. (gap-research_kivi-2)
+- 기업 IT 사업 문서 검토 Agent의 질의응답·요약·인용·도구 호출 품질에 대한 KIVI 전용 실험은 확인되지 않았다. (gap-research_kivi-2)
 
-- 제공된 코드 발췌에는 license 문구가 없으며, 이는 라이선스 부재가 아니라 검색 미확인이다. 독립 재현과 production 운용도 unknown이다. (gap-research_kivi-3)
+- KIVI와 InfiniGen을 동일 모델·GPU·배치·컨텍스트 길이에서 직접 비교한 근거는 제공된 발췌에 없다. (gap-research_kivi-3)
 
-- 기업 IT 문서 검토 Agentic AI의 대표 사용조건에서 정확도·지연·동시성·SLO·지속운용을 검증한 공개 근거는 unknown이다. (gap-research_infinigen-1)
+- 기업의 IT 사업 문서 검토 Agentic AI에서 장문·반복·동시 요청을 처리할 때의 정확도, 지연, 비용, 운영 안정성은 미검증이다. (gap-research_infinigen-1)
 
-- 두 기술 모두 제공 자료에서 기업 IT 사업 문서를 검토하는 Agentic AI의 실제 데이터·도구호출 환경에서 정확도, 근거성·환각, latency, 동시성, SLO와 지속운용을 검증한 결과는 unknown이다. (gap-market-1)
+- InfiniGen의 attention prediction 오류율과 PCIe 세대·CPU 메모리 구성별 민감도는 제공 발췌에서 확인되지 않았다. (gap-research_infinigen-2, gap-stakeholder-4)
 
-- 제공 자료에서 공개 기업 채택·고객 사례·도입률·시장 규모와 SK AX 내부 구조 또는 KIVI·InfiniGen 채택 사실은 확인되지 않는다. 이는 제공 발췌의 검색 미확인이며 원문 전체나 비공개 도입의 부재를 뜻하지 않는다. (gap-market-2)
+- 공식 저장소의 실행 재현 절차와 라이선스 조건은 제공 발췌만으로 확인되지 않았다. (gap-research_infinigen-3)
 
-- CAPEX/OPEX, 클라우드·온프레미스 TCO, 통합·유지보수 인력, support 조건과 코드 저장소 license는 금액 또는 확정 조건으로 산정할 근거가 제공 발췌에서 unknown이다. (gap-market-3)
+- 두 기술 모두 기업 IT 사업 문서 검토 Agent의 사실성, 인용 정확도, 요약·질의응답·도구 호출 품질을 직접 검증한 결과가 제공되지 않았다. (gap-market-1)
 
-- 동일 모델·정밀도·입출력 길이·batch·장비·baseline에서 두 기술을 직접 비교한 기업 문서 검토 benchmark와 독립 재현 결과가 unknown이다. (gap-market-4)
+- SK AX의 장문·반복·동시 요청 조건에서 두 기술의 지연시간, 정확도, 장애복구, 보안, 운영비를 검증한 자료가 없다. (gap-market-2)
 
-- 제공된 검색 발췌 범위에서 두 기술이 기업 IT 사업 문서의 조항 추출 정확도·누락·환각·근거 추적·Agentic tool-call 정확도를 검증한 결과는 확인되지 않아 unknown이다. (gap-stakeholder-1)
+- 두 기술의 공식 라이선스 적합성, 유지보수 비용, 독립 재현 절차와 공개 상용 채택 사례는 제공된 출처 범위에서 확인되지 않았다. (gap-market-3)
 
-- 장문·반복·동시 요청에서 기업 문서의 latency·SLO·동시성·장애 복구·지속운용 결과는 두 기술 모두 unknown이다. KIVI는 A100 wall-clock 효율 자체는 확인됐지만 반복 횟수와 software 세부가 남아 있다. (gap-stakeholder-2)
+- 기업 IT 사업 문서 검토에서 두 기술의 사실성·인용·요약·도구 호출 품질을 직접 검증한 실험은 확인되지 않았다. (gap-stakeholder-1)
 
-- KIVI Figure 5의 KIVI-2/KIVI-4 variant별 정밀도, 절대 batch, latency·accuracy, 반복·software 설정과 기업 문서 독립 재현·production 검증은 검색 발췌에서 미확인이다. (gap-stakeholder-3)
+- SK AX의 장문·반복·동시 요청 조건에서 두 기술의 정확도·지연·비용·운영 안정성을 직접 비교한 근거가 없다. (gap-stakeholder-2)
 
-- InfiniGen Table 2의 80% 축출 정책을 selective prefetch의 문서 정확도와 연결할 수 없으며, Figure 17의 모델·정밀도·길이·batch·장비·데이터셋·baseline·측정/시뮬레이션·반복 조건은 검색 발췌에서 미확인이다. (gap-stakeholder-4)
+- KIVI와 InfiniGen을 동일 모델·GPU·배치·컨텍스트 길이에서 비교한 근거가 없다. (gap-stakeholder-3)
 
-- 두 기술의 제공 발췌에서 저장소 license 문구와 CPU KV pool의 접근통제·보존정책·데이터 이동 통제·오류 책임경계·검수기준은 unknown이다. SK AX 내부 구조와 KIVI·InfiniGen의 실제 채택·도입 여부도 제공 근거에서 확인하지 않는다. (gap-stakeholder-5)
+- 두 기술의 기업 도입을 위한 공식 라이선스, 보안 통제, 장애복구, 운영 SLA와 문서 검토 결과의 책임분담은 추가 확인이 필요하다. (gap-stakeholder-5)
 
-- 제공된 AiPMO 설명과 논문 benchmark 사이에서 실제 RFP·계약·사업계획서·발주 문서와 Agent 도구 chain을 사용한 사실성·근거 인용·리스크 recall, latency, peak 또는 CPU/GPU memory, 동시성 SLO, 접근통제·보안 격리 및 생산 운용 안정성은 양 기술 모두 unknown이다. (gap-domain-1)
+- 기업 IT 사업 문서 검토에서 요구사항·조항 추출, 인용, 요약, 리스크 판정, RAG 및 도구 호출 품질을 두 기술로 검증한 실험이 없다. (gap-domain-1)
 
-- KIVI Figure 5 발췌에서 절대 batch, KIVI-2/KIVI-4 정밀도 매핑, latency·accuracy, 반복 횟수·software detail 및 명시적 simulation 여부가 미확인이다. 제공된 KIVI 코드 발췌의 license 문구도 검색 미확인이며 라이선스 부재를 뜻하지 않는다. (gap-domain-2)
+- SK AX의 장문·반복·동시 요청은 적용 가정이며, 실제 내부 구조·업무량·도입 또는 채택 사실은 확인되지 않았다. (gap-domain-2)
 
-공백의 원문·해소 판단·근거는 [공백 검수표](gap_review.md)에 보존했습니다. 자동 판정은 실제 도입이나 모든 인용의 의미 정확성을 인증하지 않습니다.
+- KIVI와 InfiniGen을 동일 모델·정밀도·입출력 길이·배치·GPU·CPU 메모리·PCIe 조건에서 비교한 정확도·지연·메모리 실험이 없다. (gap-domain-3)
+
+- InfiniGen의 attention prediction 오류율과 PCIe·CPU 메모리 구성별 민감도, KIVI의 기업 문서 근거 보존 손실은 제공 발췌에서 확인되지 않았다. (gap-domain-4)
+
+- 두 기술의 운영 SLA, 장애 복구, 보안·접근통제, 공식 라이선스 적합성 및 독립 재현 절차는 목표 업무 적용 전에 추가 확인이 필요하다. (gap-domain-5)
+
+공백별 판단 근거와 후속 확인 항목: [공백 검수표](gap_review.md).
 
 # REFERENCE
 
 [1] SK AX (발행일 미상). **SK AX AiPMO**. 공식 웹 자료, 스냅샷 6dbb089c1432. 조회 2026-09-21.  
 https://www.skax.co.kr/ax-services/aipmo
 
-[2] Wonbeom Lee et al (2024). **InfiniGen: Efficient Generative Inference of Large Language Models with Dynamic KV Cache Management**. arXiv, 2406.19707v1. 조회 2026-09-22.  
+[2] KIVI authors (발행일 미상). **https://raw.githubusercontent.com/jy-yuan/KIVI/main/docs/long_bench.md**. 공식 웹 자료, 스냅샷 74a7fdff77c7. 조회 2026-09-21.  
+https://raw.githubusercontent.com/jy-yuan/KIVI/main/docs/long_bench.md
+
+[3] Wonbeom Lee et al (2024). **InfiniGen: Efficient Generative Inference of Large Language Models with Dynamic KV Cache Management**. arXiv, 2406.19707v1. 조회 2026-09-22.  
 https://arxiv.org/pdf/2406.19707v1
 
-[3] SNU Computer Architecture Lab (발행일 미상). **InfiniGen official repository README**. 공식 웹 자료, 스냅샷 f6a08e32c16d. 조회 2026-09-21.  
+[4] SNU Computer Architecture Lab (발행일 미상). **InfiniGen official repository README**. 공식 웹 자료, 스냅샷 f6a08e32c16d. 조회 2026-09-21.  
 https://raw.githubusercontent.com/snu-comparch/InfiniGen/main/README.md
 
-[4] Zirui Liu et al (2024). **KIVI: A Tuning-Free Asymmetric 2bit Quantization for KV Cache**. arXiv, 2402.02750v2. 조회 2026-09-22.  
+[5] Zirui Liu et al (2024). **KIVI: A Tuning-Free Asymmetric 2bit Quantization for KV Cache**. arXiv, 2402.02750v2. 조회 2026-09-22.  
 https://arxiv.org/pdf/2402.02750v2

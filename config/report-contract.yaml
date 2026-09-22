@@ -5,6 +5,7 @@ roles: [research, market, stakeholder, domain, synthesis]
 report:
   sections: [기술 성숙도, 시장성, 이해관계자, 도메인 적용, 관점 간 상충과 한계]
   summary_claim_count: [2, 3]
+  summary_includes: [synthesis, followup_perspective]
   synthesis_claim_count: 2
   retain_all_body_claims: true
   evidence: verbatim_source_quotes_with_page_or_web_section

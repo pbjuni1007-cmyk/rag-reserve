@@ -146,10 +146,12 @@ class Corpus:
         return len(pages)
 
     def retrieval_identity(self):
+        from rag.context import policy_identity
         return {"sources": {key: {k: value.get(k) for k in
                     ("url", "sha256", "raw_sha256", "text_sha256", "version", "status")}
                 for key, value in sorted(self.sources.items())},
                 "discovery": getattr(self, "discovery_config", {}),
+                "context": policy_identity(self.config),
                 "embedding": getattr(self, "embedding", {}),
                 "chunk_tokens": self.config.get("chunk_tokens"), "overlap_tokens": self.config.get("overlap_tokens")}
 

@@ -87,17 +87,23 @@ def render_report(out, report, joined, sources, settings, config):
     def claim_text(cid, table=False):
         c = claims[cid]
         parts = [f"**{LABELS[c['kind']]} · {cid}**", c["text"] + " " + citations(c)]
-        for label, key in (("조건", "conditions"), ("한계", "caveats")):
-            if c[key].strip():
-                parts.append(f"**{label}:** {c[key]}")
+        if table:
+            parts.append(f"[조건·한계·원문](citation_review.md#{cid})")
+        else:
+            for label, key in (("조건", "conditions"), ("한계", "caveats")):
+                if c[key].strip():
+                    parts.append(f"**{label}:** {c[key]}")
         return "<br><br>".join(cell(x) for x in parts) if table else "\n\n".join(parts)
 
-    summary = [f"[{LABELS[claims[c]['kind']]}] {claims[c]['text']} {citations(claims[c])}" for c in report["summary_claim_ids"]]
+    def technology_label(claim):
+        return "KIVI · InfiniGen" if claim["technology"] == "both" else claim["technology"]
+
+    summary = [f"**{technology_label(claims[c])}** · [{LABELS[claims[c]['kind']]}] {claims[c]['text']} {citations(claims[c])}"
+               for c in report["summary_claim_ids"]]
     if len("\n".join(summary)) > 1200:
         raise ValueError("SUMMARY draft is too long; shorten before user PDF conversion")
     md = ["# SUMMARY", "", *[part for text in summary for part in (text, "")],
           "**대상 기술:** KIVI / InfiniGen  ", "**단일 도메인:** " + config["domain"], "",
-          "> 검토본. PDF 변환 후 SUMMARY 반 페이지·페이지 배치는 사용자가 확인합니다.", "",
           "**적용 가정:** " + config["scenario"], ""]
     facets = {"adoption": "채택 동기·공개 신호", "alternatives": "대안·연동", "costs": "비용·유지 부담",
               "user": "문서 검토자", "operator": "AI·인프라 운영자", "governance": "구매·보안·관리 담당자",
@@ -136,9 +142,8 @@ def render_report(out, report, joined, sources, settings, config):
                 for text, gids in grouped.items():
                     md.extend([f"- {text} ({', '.join(gids)})", ""])
             else:
-                md.extend(["종합 단계에서 해소한 것으로 판단했습니다. 이 판단은 아래 검수표에서 사람이 확인해야 합니다.", ""])
-            md.extend(["공백의 원문·해소 판단·근거는 [공백 검수표](gap_review.md)에 보존했습니다. "
-                       "자동 판정은 실제 도입이나 모든 인용의 의미 정확성을 인증하지 않습니다.", ""])
+                md.extend(["종합 단계의 해소 판단과 근거를 공백 검수표에 정리했습니다.", ""])
+            md.extend(["공백별 판단 근거와 후속 확인 항목: [공백 검수표](gap_review.md).", ""])
     md.extend(["# REFERENCE", ""])
     for sid in used_sources:
         source = sources[sid]
@@ -155,10 +160,11 @@ def render_report(out, report, joined, sources, settings, config):
     (out / "report.md").write_text(document)
 
     review_claims = list(dict.fromkeys(used_claims + [cid for d in decisions.values() for cid in d["claim_ids"]]))
-    review = ["# 인용 검수", "", "원문 구절 존재와 주장 전체·실험조건의 의미는 서로 다른 검사입니다. 후자는 미검수 상태입니다.", ""]
+    review = ["# 인용 검수", "", "각 주장의 전체 본문·실험조건·한계를 원문과 대조하는 검수표입니다. 현재 의미 검수는 대기 중입니다.", ""]
     for cid in review_claims:
         c = claims[cid]
-        review.extend(["## " + cid, "", c["text"], "", "**조건:** " + c["conditions"], "",
+        review.extend(["## " + cid, "", f"**기술:** {technology_label(c)} · **주장 종류:** {LABELS[c['kind']]}", "",
+                       c["text"], "", "**조건:** " + c["conditions"], "",
                        "**한계:** " + c["caveats"], "", "판정: 미검수", ""])
         for eid in c["evidence_ids"]:
             ev = evidence[eid]

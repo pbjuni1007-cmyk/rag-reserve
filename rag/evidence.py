@@ -102,6 +102,11 @@ def report_errors(report, claims, chunks, gap_records=None):
     if not 2 <= len(report["summary_claim_ids"]) <= 3:
         errors.append("SUMMARY requires 2..3 concise claims")
     refs = list(report["summary_claim_ids"])
+    if len(refs) != len(set(refs)):
+        errors.append("SUMMARY must not repeat claim IDs")
+    summary_perspectives = {claims[c].get("perspective") for c in refs if c in claims}
+    if "synthesis" not in summary_perspectives or not summary_perspectives.intersection({"market", "stakeholder", "domain"}):
+        errors.append("SUMMARY must include synthesis and a market/stakeholder/domain assessment")
     required = ["기술 성숙도", "시장성", "이해관계자", "도메인 적용", "관점 간 상충과 한계"]
     if [s["title"] for s in report["sections"]] != required:
         errors.append("Report must contain exactly the five agreed body sections in order")
